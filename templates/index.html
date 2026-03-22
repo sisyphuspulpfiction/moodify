@@ -209,6 +209,9 @@
   }
   .expand-btn:hover { color: var(--text); }
 
+  .expand-btn-toggle svg { transition: transform 0.3s; }
+  .mood-card.expanded .expand-btn-toggle svg { transform: rotate(180deg); }
+
   /* ── CHART ── */
   #chart-section { margin-bottom: 40px; }
   .chart-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; }
@@ -397,7 +400,6 @@ async function startAnalysis() {
     if (!res.ok) throw new Error('Analysis failed');
     const data = await res.json();
     clearInterval(interval);
-    moodData = data.moods;
     renderResults(data);
   } catch(e) {
     clearInterval(interval);
@@ -411,6 +413,16 @@ async function startAnalysis() {
 function renderResults(data) {
   hide('loading');
   show('step-results');
+  moodData = data.moods || [];
+
+  if (moodData.length === 0) {
+    document.getElementById('stats-row').innerHTML = `
+      <div class="stat-card"><div class="val">${data.total}</div><div class="lbl">Liked Songs</div></div>
+      <div class="stat-card" style="grid-column: span 2"><div class="val">0</div><div class="lbl">No moods identified</div></div>
+    `;
+    document.getElementById('mood-grid').innerHTML = '';
+    return;
+  }
 
   // Stats
   const maxMood = data.moods.reduce((a,b)=>a.count>b.count?a:b,data.moods[0]);
@@ -458,6 +470,9 @@ function renderResults(data) {
         <div class="mood-bar-wrap">
           <div class="mood-bar" style="width:${Math.round(m.count/maxCount*100)}%"></div>
         </div>
+        <div class="expand-btn-toggle" style="margin-left:auto; cursor:pointer; padding: 5px;" onclick="toggleExpand(this.closest('.mood-card')); event.stopPropagation()">
+           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
         <input class="mood-name-input" value="${m.emoji} ${m.mood}"
                onclick="event.stopPropagation()"
                placeholder="Playlist name"
@@ -465,7 +480,7 @@ function renderResults(data) {
       </div>
       <div class="mood-songs">
         <div class="song-list">${songRows}</div>
-        <div class="expand-btn" onclick="event.stopPropagation()">↑ hide preview</div>
+        <div class="expand-btn" onclick="toggleExpand(this.closest('.mood-card')); event.stopPropagation()">↑ hide preview</div>
       </div>
     `;
     grid.appendChild(card);
@@ -507,6 +522,10 @@ function toggleCard(card) {
   updateSelectedCount();
 }
 
+function toggleExpand(card) {
+  card.classList.toggle('expanded');
+}
+
 function updateSelectedCount() {
   const n = document.querySelectorAll('.mood-card.selected').length;
   document.getElementById('selected-count').textContent = n;
@@ -525,10 +544,16 @@ async function createPlaylists() {
   btn.textContent = 'Creating…';
 
   const payload = [];
-  document.querySelectorAll('.mood-card').forEach(card => {
-    const mood = card.dataset.mood;
-    const name = card.querySelector('.mood-name-input').value.trim() || mood;
-    payload.push({ mood, name, selected: card.classList.contains('selected') });
+  document.querySelectorAll('.mood-card.selected').forEach(card => {
+    const moodName = card.dataset.mood;
+    const name = card.querySelector('.mood-name-input').value.trim() || moodName;
+    const moodObj = moodData.find(m => m.mood === moodName);
+    payload.push({
+      mood: moodName,
+      name,
+      selected: true,
+      uris: moodObj ? moodObj.all_uris : []
+    });
   });
 
   try {

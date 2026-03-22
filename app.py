@@ -7,7 +7,6 @@ Made By Claude and Gürol :)
 from flask import Flask, redirect, request, session, jsonify, render_template
 from flask_cors import CORS
 import requests
-import pandas as pd
 import os
 import time
 import urllib.parse
@@ -220,8 +219,6 @@ def analyze():
             "all_uris": [s["uri"] for s in songs],
         })
 
-    session["mood_map"] = {m: [s["uri"] for s in songs]
-                           for m, songs in mood_map.items()}
     return jsonify({"total": len(tracks), "moods": summary})
 
 @app.route("/api/create_playlists", methods=["POST"])
@@ -230,8 +227,7 @@ def create_playlists():
         return jsonify({"error": "not logged in"}), 401
 
     token    = session["access_token"]
-    mood_map = session.get("mood_map", {})
-    body     = request.json  # list of {mood, name, selected}
+    body     = request.json  # list of {mood, name, selected, uris}
     created  = []
 
     for entry in body:
@@ -239,7 +235,7 @@ def create_playlists():
             continue
         mood  = entry["mood"]
         name  = entry["name"]
-        uris  = mood_map.get(mood, [])
+        uris  = entry.get("uris", [])
         if not uris:
             continue
 
