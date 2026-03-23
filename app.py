@@ -171,9 +171,11 @@ def me():
     if not refresh_token_if_needed():
         return jsonify({"error": "not logged in"}), 401
     user = api_get("/me", session["access_token"])
+    images = user.get("images", [])
+    image_url = images[0].get("url", "") if images else ""
     return jsonify({"name": user.get("display_name", user["id"]),
                     "id":   user["id"],
-                    "image": user.get("images", [{}])[0].get("url", "")})
+                    "image": image_url})
 
 @app.route("/api/analyze")
 def analyze():
@@ -229,29 +231,38 @@ def analyze():
     artist_ids = list(set(aid for t in tracks for aid in t.get("artist_ids", [])))
     artist_genres = {}
 
+    # Track if bulk artists endpoint is restricted (403 or 404)
+    bulk_artists_restricted = False
+
     if artist_ids:
         for batch_ids in chunk(artist_ids, 50):
             try:
-                # GET /artists still works for multiple IDs in many cases, but let's be safe
-                r = requests.get(f"{API_BASE}/artists",
-                                 headers={"Authorization": f"Bearer {token}"},
-                                 params={"ids": ",".join(batch_ids)})
-                if r.status_code == 200:
-                    for a in r.json().get("artists") or []:
-                        if a:
-                            artist_genres[a["id"]] = a.get("genres", [])
-                else:
-                    print(f"Bulk artists failed ({r.status_code}), falling back to individual calls")
-                    # Fallback to individual calls if plural endpoint is restricted
-                    for aid in batch_ids:
-                        ra = requests.get(f"{API_BASE}/artists/{aid}",
-                                         headers={"Authorization": f"Bearer {token}"})
-                        if ra.status_code == 200:
-                            artist_genres[aid] = ra.json().get("genres", [])
-                        elif ra.status_code == 429:
-                            print("Rate limited during individual artist fetch, sleeping...")
-                            time.sleep(2.0)
-                        time.sleep(0.05)
+                if not bulk_artists_restricted:
+                    # GET /artists still works for multiple IDs in many cases, but let's be safe
+                    r = requests.get(f"{API_BASE}/artists",
+                                     headers={"Authorization": f"Bearer {token}"},
+                                     params={"ids": ",".join(batch_ids)})
+                    if r.status_code == 200:
+                        for a in r.json().get("artists") or []:
+                            if a:
+                                artist_genres[a["id"]] = a.get("genres", [])
+                        time.sleep(0.1)
+                        continue
+                    else:
+                        print(f"Bulk artists failed ({r.status_code}), falling back to individual calls")
+                        if r.status_code in [403, 404]:
+                            bulk_artists_restricted = True
+
+                # Fallback to individual calls if plural endpoint is restricted
+                for aid in batch_ids:
+                    ra = requests.get(f"{API_BASE}/artists/{aid}",
+                                     headers={"Authorization": f"Bearer {token}"})
+                    if ra.status_code == 200:
+                        artist_genres[aid] = ra.json().get("genres", [])
+                    elif ra.status_code == 429:
+                        print("Rate limited during individual artist fetch, sleeping...")
+                        time.sleep(2.0)
+                    time.sleep(0.05)
             except Exception as e:
                 print(f"Error fetching artist genres: {e}")
             time.sleep(0.1)
