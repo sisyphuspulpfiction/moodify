@@ -11,6 +11,7 @@ import os
 import time
 import urllib.parse
 import json
+import re
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -45,38 +46,61 @@ MOOD_EMOJIS = {
 # ─── CLASSIFICATION SYSTEM 2.0 ──────────────────────────────────────────────
 
 GENRE_MAP = {
+    # ENERGY 0-1 (Calm/Sleep/Focus)
     "ambient":        {"energy": 0, "tone": "NEUTRAL", "context": "SLEEP",     "sonic": ["INSTRUMENTAL", "LO_FI"]},
     "meditation":      {"energy": 0, "tone": "TENDER",  "context": "SLEEP",     "sonic": ["INSTRUMENTAL"]},
+    "drone":          {"energy": 0, "tone": "DARK",    "context": "SLEEP",     "sonic": ["INSTRUMENTAL"]},
     "lo-fi":          {"energy": 1, "tone": "NEUTRAL", "context": "FOCUS",     "sonic": ["LO_FI", "INSTRUMENTAL"]},
     "classical":      {"energy": 1, "tone": "TENDER",  "context": "FOCUS",     "sonic": ["ORCHESTRAL", "ACOUSTIC"]},
+    "piano":          {"energy": 1, "tone": "TENDER",  "context": "SLEEP",     "sonic": ["INSTRUMENTAL", "ACOUSTIC"]},
+    "chamber":        {"energy": 1, "tone": "NEUTRAL", "context": "FOCUS",     "sonic": ["ORCHESTRAL"]},
+    "acoustic":       {"energy": 1, "tone": "TENDER",  "context": "NOSTALGIA", "sonic": ["ACOUSTIC"]},
+
+    # ENERGY 2 (Moderate/Background)
     "jazz":           {"energy": 2, "tone": "NEUTRAL", "context": "SOCIAL",    "sonic": ["LIVE_FEEL", "ACOUSTIC"]},
     "bossa nova":     {"energy": 1, "tone": "JOYFUL",  "context": "DRIVING",   "sonic": ["ACOUSTIC"]},
     "folk":           {"energy": 2, "tone": "TENDER",  "context": "NOSTALGIA", "sonic": ["ACOUSTIC", "VOCAL_HEAVY"]},
     "singer-songwriter": {"energy": 2, "tone": "SAD",     "context": "HEARTBREAK","sonic": ["ACOUSTIC", "VOCAL_HEAVY"]},
+    "soul":           {"energy": 2, "tone": "JOYFUL",  "context": "NOSTALGIA", "sonic": ["VOCAL_HEAVY", "ACOUSTIC"]},
+    "blues":          {"energy": 2, "tone": "SAD",     "context": "LATE_NIGHT","sonic": ["LIVE_FEEL", "RAW"]},
+    "reggae":         {"energy": 2, "tone": "JOYFUL",  "context": "ADVENTURE", "sonic": ["LIVE_FEEL"]},
+    "smooth":         {"energy": 2, "tone": "TENDER",  "context": "LATE_NIGHT","sonic": ["PRODUCED"]},
+    "soft rock":      {"energy": 2, "tone": "NEUTRAL", "context": "DRIVING",   "sonic": ["LIVE_FEEL"]},
+    "r&b":            {"energy": 2, "tone": "TENDER",  "context": "LATE_NIGHT","sonic": ["VOCAL_HEAVY", "PRODUCED"]},
+
+    # ENERGY 3 (Active/Engaged)
     "indie rock":     {"energy": 3, "tone": "NEUTRAL", "context": "DRIVING",   "sonic": ["LIVE_FEEL", "RAW"]},
     "alternative":     {"energy": 3, "tone": "DARK",    "context": "LATE_NIGHT","sonic": ["RAW"]},
     "pop":            {"energy": 3, "tone": "JOYFUL",  "context": "SOCIAL",    "sonic": ["PRODUCED"]},
+    "hip hop":        {"energy": 3, "tone": "NEUTRAL", "context": "SOCIAL",    "sonic": ["PRODUCED"]},
+    "funk":           {"energy": 3, "tone": "JOYFUL",  "context": "SOCIAL",    "sonic": ["LIVE_FEEL", "PRODUCED"]},
+    "britpop":        {"energy": 3, "tone": "HOPEFUL", "context": "ADVENTURE", "sonic": ["LIVE_FEEL"]},
+    "synthpop":       {"energy": 3, "tone": "HOPEFUL", "context": "SOCIAL",    "sonic": ["ELECTRONIC", "PRODUCED"]},
+    "country":        {"energy": 2, "tone": "NEUTRAL", "context": "DRIVING",   "sonic": ["ACOUSTIC", "VOCAL_HEAVY"]},
+
+    # ENERGY 4 (High Intensity)
     "dance pop":      {"energy": 4, "tone": "EUPHORIC", "context": "SOCIAL",    "sonic": ["ELECTRONIC", "PRODUCED"]},
     "edm":            {"energy": 4, "tone": "EUPHORIC", "context": "WORKOUT",   "sonic": ["ELECTRONIC"]},
     "techno":         {"energy": 4, "tone": "DARK",    "context": "LATE_NIGHT","sonic": ["ELECTRONIC", "INSTRUMENTAL"]},
     "metal":          {"energy": 4, "tone": "DARK",    "context": "WORKOUT",   "sonic": ["RAW", "LIVE_FEEL"]},
     "punk":           {"energy": 4, "tone": "DARK",    "context": "WORKOUT",   "sonic": ["RAW"]},
-    "hip hop":        {"energy": 3, "tone": "NEUTRAL", "context": "SOCIAL",    "sonic": ["PRODUCED"]},
+    "hardcore":       {"energy": 4, "tone": "DARK",    "context": "WORKOUT",   "sonic": ["RAW"]},
+    "trap":           {"energy": 4, "tone": "DARK",    "context": "WORKOUT",   "sonic": ["ELECTRONIC", "PRODUCED"]},
+    "house":          {"energy": 4, "tone": "JOYFUL",  "context": "SOCIAL",    "sonic": ["ELECTRONIC"]},
+    "disco":          {"energy": 4, "tone": "EUPHORIC", "context": "SOCIAL",    "sonic": ["LIVE_FEEL", "PRODUCED"]},
     "rap":            {"energy": 3, "tone": "DARK",    "context": "WORKOUT",   "sonic": ["VOCAL_HEAVY"]},
-    "r&b":            {"energy": 2, "tone": "TENDER",  "context": "LATE_NIGHT","sonic": ["VOCAL_HEAVY", "PRODUCED"]},
-    "soul":           {"energy": 2, "tone": "JOYFUL",  "context": "NOSTALGIA", "sonic": ["VOCAL_HEAVY", "ACOUSTIC"]},
-    "reggae":         {"energy": 2, "tone": "JOYFUL",  "context": "ADVENTURE", "sonic": ["LIVE_FEEL"]},
-    "shoegaze":       {"energy": 2, "tone": "DARK",    "context": "LATE_NIGHT","sonic": ["CINEMATIC", "RAW"]},
+    "rock":           {"energy": 3, "tone": "NEUTRAL", "context": "DRIVING",   "sonic": ["RAW", "LIVE_FEEL"]},
+    "hard rock":      {"energy": 4, "tone": "DARK",    "context": "WORKOUT",   "sonic": ["RAW", "LIVE_FEEL"]},
 }
 
 NLP_SIGNALS = {
-    "DARK":       ["night", "dark", "death", "blood", "void", "shadow", "kill", "devil", "hell", "burn"],
-    "SAD":        ["cry", "tears", "goodbye", "alone", "broken", "miss", "hurt", "lost", "empty", "never"],
-    "JOYFUL":     ["sunshine", "happy", "good time", "party", "dance", "celebrate", "love", "summer", "free"],
-    "TENDER":     ["hold", "close", "soft", "dream", "gentle", "together", "home", "heart"],
-    "EUPHORIC":   ["sky", "star", "light", "higher", "fly", "heaven", "magic"],
-    "LATE_NIGHT": ["midnight", "3am", "late", "insomnia", "moonlight", "after dark"],
-    "WORKOUT":    ["power", "beast", "fire", "run", "grind", "hustle", "stronger"],
+    "DARK":       ["night", "dark", "death", "blood", "void", "shadow", "kill", "devil", "hell", "burn", "evil", "black", "doom", "kill"],
+    "SAD":        ["cry", "tears", "goodbye", "alone", "broken", "miss", "hurt", "lost", "empty", "never", "blue", "melancholy", "sad"],
+    "JOYFUL":     ["sunshine", "happy", "good time", "party", "dance", "celebrate", "love", "summer", "free", "smile", "fun", "bright"],
+    "TENDER":     ["hold", "close", "soft", "dream", "gentle", "together", "home", "heart", "warm", "darling", "baby", "love"],
+    "EUPHORIC":   ["sky", "star", "light", "higher", "fly", "heaven", "magic", "rising", "fireworks", "transcend"],
+    "LATE_NIGHT": ["midnight", "3am", "late", "insomnia", "moonlight", "after dark", "sleepy", "quiet", "city"],
+    "WORKOUT":    ["power", "beast", "fire", "run", "grind", "hustle", "stronger", "energy", "training", "fast", "speed"],
 }
 
 OVERRIDE_ARTISTS = {
@@ -110,22 +134,36 @@ def classify_track(track):
         "sonic":   []
     }
 
-    # Weighting: Genre
+    # Weighting: Genre & Sub-genre Inference
     for g in genres:
+        matched = False
         for kw, val in GENRE_MAP.items():
             if kw in g:
                 scores["energy"].append(val["energy"])
                 scores["tone"][val["tone"]] += 3
                 scores["context"][val["context"]] += 3
                 scores["sonic"].extend(val.get("sonic", []))
+                matched = True
+
+        # Inference for unknown genres
+        if not matched:
+            if "metal" in g: scores["energy"].append(4); scores["tone"]["DARK"] += 2; scores["context"]["WORKOUT"] += 1
+            elif "punk" in g: scores["energy"].append(4); scores["tone"]["DARK"] += 2; scores["context"]["WORKOUT"] += 1
+            elif "pop" in g: scores["energy"].append(3); scores["tone"]["JOYFUL"] += 2; scores["context"]["SOCIAL"] += 1
+            elif "rock" in g: scores["energy"].append(3); scores["tone"]["NEUTRAL"] += 2; scores["context"]["DRIVING"] += 1
+            elif "jazz" in g: scores["energy"].append(2); scores["tone"]["NEUTRAL"] += 2; scores["context"]["SOCIAL"] += 1
+            elif "folk" in g: scores["energy"].append(2); scores["tone"]["TENDER"] += 2; scores["context"]["NOSTALGIA"] += 1
+            elif "ambient" in g: scores["energy"].append(0); scores["tone"]["NEUTRAL"] += 2; scores["context"]["SLEEP"] += 1
 
     # Weighting: NLP Name/Album (30%)
+    # Use word boundaries for better keyword matching
     meta_str = f"{name} {album}"
     for tone, signals in NLP_SIGNALS.items():
-        if any(s in meta_str for s in signals):
-            if tone in scores["tone"]: scores["tone"][tone] += 3
-            if tone in scores["context"]: scores["context"][tone] += 3
-            if tone == "WORKOUT": scores["energy"].append(4)
+        for s in signals:
+            if re.search(r'\b' + re.escape(s) + r'\b', meta_str):
+                if tone in scores["tone"]: scores["tone"][tone] += 3
+                if tone in scores["context"]: scores["context"][tone] += 3
+                if tone == "WORKOUT": scores["energy"].append(4)
 
     # Weighting: Artist Overrides (10%)
     if artist in OVERRIDE_ARTISTS:
@@ -246,18 +284,20 @@ def me():
 # ─── PLAYLIST RECIPES ────────────────────────────────────────────────────────
 
 PLAYLIST_RECIPES = [
-    {"id": "3am_drive",      "name": "3am Drive",          "emoji": "🌃", "req": {"context": "LATE_NIGHT", "energy": [2,3], "tone": ["DARK", "NEUTRAL"]}},
-    {"id": "gym_beast",      "name": "Gym Beast Mode",     "emoji": "🔥", "req": {"context": "WORKOUT",    "energy": [4],   "tone": ["DARK", "EUPHORIC"]}},
-    {"id": "sunday_morning", "name": "Sunday Morning",      "emoji": "☕", "req": {"energy": [0,1],       "tone": ["TENDER"], "sonic": ["ACOUSTIC"]}},
-    {"id": "broken_heart",   "name": "Broken Heart at 2am","emoji": "💔", "req": {"context": "HEARTBREAK", "tone": ["SAD"]}},
-    {"id": "pre_game",       "name": "Pre-Game Hype",      "emoji": "🥂", "req": {"context": "SOCIAL",     "energy": [3,4], "tone": ["EUPHORIC"]}},
-    {"id": "deep_focus",     "name": "Deep Focus",         "emoji": "🧠", "req": {"context": "FOCUS",      "energy": [1,2], "sonic": ["INSTRUMENTAL", "LO_FI"]}},
-    {"id": "road_trip",      "name": "Road Trip Anthems",  "emoji": "🚗", "req": {"context": "ADVENTURE",  "energy": [3,4], "tone": ["HOPEFUL", "JOYFUL", "EUPHORIC"]}},
-    {"id": "rainy_day",      "name": "Rainy Day Indie",    "emoji": "🌧️", "req": {"energy": [1,2],       "tone": ["SAD", "NEUTRAL"], "sonic": ["LIVE_FEEL", "ACOUSTIC"]}},
-    {"id": "club_ready",     "name": "Club Ready",         "emoji": "💃", "req": {"context": "SOCIAL",     "energy": [4],   "sonic": ["ELECTRONIC"]}},
+    {"id": "3am_drive",      "name": "3am Drive",          "emoji": "🌃", "req": {"context": "LATE_NIGHT", "energy": [1,2,3], "tone": ["DARK", "NEUTRAL", "SAD"]}},
+    {"id": "gym_beast",      "name": "Gym Beast Mode",     "emoji": "🔥", "req": {"context": "WORKOUT",    "energy": [3,4],   "tone": ["DARK", "EUPHORIC", "JOYFUL"]}},
+    {"id": "sunday_morning", "name": "Sunday Morning",      "emoji": "☕", "req": {"energy": [0,1,2],       "tone": ["TENDER", "HOPEFUL"], "sonic": ["ACOUSTIC"]}},
+    {"id": "broken_heart",   "name": "Broken Heart at 2am","emoji": "💔", "req": {"context": "HEARTBREAK", "tone": ["SAD", "DARK"]}},
+    {"id": "pre_game",       "name": "Pre-Game Hype",      "emoji": "🥂", "req": {"context": "SOCIAL",     "energy": [3,4], "tone": ["EUPHORIC", "JOYFUL"]}},
+    {"id": "deep_focus",     "name": "Deep Focus",         "emoji": "🧠", "req": {"context": "FOCUS",      "energy": [0,1,2]}},
+    {"id": "road_trip",      "name": "Road Trip Anthems",  "emoji": "🚗", "req": {"context": "ADVENTURE",  "energy": [2,3,4]}},
+    {"id": "rainy_day",      "name": "Rainy Day Indie",    "emoji": "🌧️", "req": {"energy": [1,2,3],       "tone": ["SAD", "NEUTRAL"]}},
+    {"id": "club_ready",     "name": "Club Ready",         "emoji": "💃", "req": {"context": "SOCIAL",     "energy": [4],   "tone": ["EUPHORIC", "DARK"]}},
     {"id": "nostalgia_90s",  "name": "90s Nostalgia",      "emoji": "📼", "req": {"era": ["90s"]}},
     {"id": "nostalgia_80s",  "name": "80s Nostalgia",      "emoji": "🕹️", "req": {"era": ["80s"]}},
     {"id": "nostalgia_00s",  "name": "00s Nostalgia",      "emoji": "🎧", "req": {"era": ["00s"]}},
+    {"id": "chill_vibes",    "name": "Mellow Gold",        "emoji": "🌙", "req": {"energy": [1,2],       "tone": ["NEUTRAL", "TENDER"]}},
+    {"id": "high_energy",    "name": "Electric Pulse",     "emoji": "⚡", "req": {"energy": [4],         "sonic": ["ELECTRONIC", "PRODUCED"]}},
 ]
 
 @app.route("/api/analyze")
