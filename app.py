@@ -58,11 +58,30 @@ GENRE_MOODS = {
     "Sad / Reflective": ["sad", "melancholy", "ballad", "dark folk", "ambient", "minimal", "modern classical"],
 }
 
+# Metadata Keywords mapping
+KEYWORD_MOODS = {
+    "Hype / Party": ["party", "dance", "disco", "remix", "club", "hits", "energy"],
+    "Pump-Up / Workout": ["workout", "gym", "pump", "training", "hard", "heavy", "intense"],
+    "Dark & Intense": ["dark", "intense", "shadow", "night", "black", "doom"],
+    "Feel-Good / Upbeat": ["happy", "summer", "sunny", "upbeat", "good vibes", "smile", "fun"],
+    "Sunny / Laid-Back": ["relax", "beach", "tropical", "laid back", "surf", "breeze"],
+    "Melancholic / Moody": ["moody", "sad", "blue", "alternative", "emo", "rain"],
+    "Acoustic / Soulful": ["acoustic", "unplugged", "soul", "jazz", "live", "ballad"],
+    "Calm Acoustic": ["calm", "soft", "peaceful", "acoustic", "piano", "sleep"],
+    "Energetic Instrumental": ["instrumental", "techno", "electronic", "progressive", "beats"],
+    "Ambient / Chill Instrumental": ["ambient", "chill", "lofi", "study", "relaxing", "background"],
+    "Relaxed / Mellow": ["chillout", "mellow", "smooth", "easy", "soft"],
+    "Sad / Reflective": ["sad", "heartbreak", "crying", "broken", "lonely", "slow"],
+}
+
 def assign_mood(track):
     f = track.get("audio_features", {})
     genres = [g.lower() for g in track.get("genres", [])]
+    name = track.get("name", "").lower()
+    album = track.get("album", "").lower()
 
-    # Audio feature-based classification
+    # Priority 1: Audio feature-based classification (if available)
+    # Refined thresholds to avoid everything landing in 'Cruising'
     if f:
         e   = f.get("energy", 0.5)
         v   = f.get("valence", 0.5)
@@ -77,19 +96,24 @@ def assign_mood(track):
             if v < 0.4:               return "Dark & Intense"
             return "Pump-Up / Workout"
         if 0.4 <= e < 0.75:
-            if v >= 0.65 and d >= 0.6: return "Feel-Good / Upbeat"
-            if v >= 0.65 and d < 0.6:  return "Sunny / Laid-Back"
-            if v < 0.35:               return "Melancholic / Moody"
-            if a >= 0.5:               return "Acoustic / Soulful"
+            if v >= 0.6 and d >= 0.6: return "Feel-Good / Upbeat"
+            if v >= 0.6 and d < 0.6:  return "Sunny / Laid-Back"
+            if v < 0.4:               return "Melancholic / Moody"
+            if a >= 0.4:               return "Acoustic / Soulful"
             return "Cruising / Everyday"
         if e < 0.4:
             if a >= 0.5:  return "Calm Acoustic"
             if v < 0.35:  return "Sad / Reflective"
             return "Relaxed / Mellow"
 
-    # Fallback: Genre-based classification
+    # Priority 2: Genre-based classification (most accurate metadata)
     for mood, keywords in GENRE_MOODS.items():
         if any(kw in g for kw in keywords for g in genres):
+            return mood
+
+    # Priority 3: Keyword-based classification (metadata fallback)
+    for mood, keywords in KEYWORD_MOODS.items():
+        if any(kw in name or kw in album for kw in keywords):
             return mood
 
     return "Cruising / Everyday"
@@ -187,6 +211,15 @@ def analyze():
     token  = session["access_token"]
     tracks = []
 
+    # Bootstrap artist genres from user's top artists (1 call, 50 artists)
+    # This provides a broad genre profile for the user's library
+    artist_genres = {}
+    try:
+        top_artists = api_get("/me/top/artists", token, {"limit": 50})
+        for a in top_artists.get("items", []):
+            artist_genres[a["id"]] = a.get("genres", [])
+    except: pass
+
     # Paginate through all liked songs
     url    = "/me/tracks"
     params = {"limit": 50, "offset": 0}
@@ -230,17 +263,25 @@ def analyze():
             print(f"Error fetching audio features: {e}")
         time.sleep(0.1)
 
+    # Count track occurrences per artist to prioritize fetching
+    artist_counts = {}
+    for t in tracks:
+        aid = t.get("primary_artist_id")
+        if aid:
+            artist_counts[aid] = artist_counts.get(aid, 0) + 1
+
     # Fetch artist genres as a fallback
-    # Use only the primary (first) artist to minimize API calls for genres
-    artist_ids = list(set(t["primary_artist_id"] for t in tracks if t.get("primary_artist_id")))
+    # Sort artists by track count to prioritize the most impactful ones
+    artist_ids = sorted(artist_counts.keys(), key=lambda x: artist_counts[x], reverse=True)
 
     # Simple JSON cache for artist genres
     cache_file = "artist_cache.json"
-    artist_genres = {}
+    # merge with bootstrapped genres
     if os.path.exists(cache_file):
         try:
             with open(cache_file, "r") as f:
-                artist_genres = json.load(f)
+                cached = json.load(f)
+                artist_genres.update(cached)
         except: pass
 
     # Track if bulk artists endpoint is restricted (403 or 404)
