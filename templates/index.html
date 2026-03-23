@@ -60,9 +60,10 @@
   .analyze-count { color: var(--muted); margin-bottom: 32px; }
 
   .live-feed {
-    height: 200px; overflow: hidden; background: var(--surface); border-radius: 12px;
+    height: 300px; overflow: hidden; background: #000; border-radius: 12px;
     padding: 20px; border: 1px solid var(--border);
-    display: flex; flex-direction: column-reverse; gap: 8px; font-size: 13px;
+    display: flex; flex-direction: column-reverse; gap: 8px; font-size: 12px;
+    font-family: 'Monaco', 'Consolas', monospace;
   }
   .feed-item { animation: slideIn 0.3s ease-out; display: flex; justify-content: space-between; color: var(--muted); }
   .feed-item strong { color: var(--accent); }
@@ -94,8 +95,9 @@
   .card-emoji { font-size: 32px; }
   .card-count { color: var(--muted); font-size: 14px; font-weight: 500; }
 
-  .card-info h3 { font-size: 20px; margin-bottom: 4px; }
-  .card-artists { color: var(--muted); font-size: 12px; line-height: 1.4; height: 34px; overflow: hidden; }
+  .card-info h3 { font-size: 22px; margin-bottom: 4px; font-family: 'Syne', sans-serif; }
+  .card-desc { color: var(--accent); font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 1px; }
+  .card-artists { color: var(--muted); font-size: 12px; line-height: 1.4; }
 
   .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); }
 
@@ -151,7 +153,12 @@
       {% if not logged_in %}
       <a href="/login" class="btn btn-spotify">Connect with Spotify</a>
       {% else %}
-      <button class="btn btn-spotify" onclick="startAnalysis()">Start Analysis</button>
+      <div style="margin-bottom: 32px; display: flex; align-items: center; justify-content: center; gap: 12px; background: var(--surface); padding: 12px 24px; border-radius: 100px; border: 1px solid var(--border);">
+        <img src="{{ user_info.image }}" style="width: 32px; height: 32px; border-radius: 50%;" alt="">
+        <span style="font-weight: 700;">{{ user_info.name }}</span>
+        <a href="/logout" style="color: var(--muted); font-size: 12px; text-decoration: none;">Sign out</a>
+      </div>
+      <button class="btn btn-spotify" onclick="startAnalysis()">Analyze My Library</button>
       {% endif %}
     </div>
   </div>
@@ -209,31 +216,42 @@
 
   async function startAnalysis() {
     showPage('page-analyze');
-    updateStatus('Initializing analysis...', 0);
+    updateStatus('Initializing analysis...', 5);
 
-    // Simulate steps since we don't have SSE yet
+    // UI steps
     const steps = [
-      'Fetching liked songs...',
-      'Retrieving artist metadata...',
-      'Mapping genres and eras...',
-      'Deep classifying tracks...',
-      'Cooking intelligent playlists...'
+      'Syncing liked songs...',
+      'Analyzing artist DNA...',
+      'Decoding metadata signals...',
+      'Generating intelligent vibes...',
+      'Polishing playlists...'
     ];
 
     let stepIdx = 0;
     const interval = setInterval(() => {
       if(stepIdx < steps.length) {
-        updateStatus(steps[stepIdx], (stepIdx + 1) * 20);
+        updateStatus(steps[stepIdx], 10 + (stepIdx * 15));
         stepIdx++;
       }
-    }, 2000);
+    }, 2500);
 
     try {
       const res = await fetch('/api/analyze');
       const data = await res.json();
       clearInterval(interval);
       analyzeData = data;
-      renderDashboard(data);
+
+      // Handle debug feed for live console
+      if(data.debug_feed) {
+        data.debug_feed.forEach((track, i) => {
+          setTimeout(() => {
+            const vibe = `${track.profile.context} · ${track.profile.tone}`;
+            addToFeed(track.name, vibe);
+          }, i * 150);
+        });
+      }
+
+      setTimeout(() => renderDashboard(data), data.debug_feed.length * 150 + 500);
     } catch(e) {
       alert('Analysis failed: ' + e.message);
       location.reload();
@@ -279,6 +297,7 @@
         </div>
         <div class="art-grid">${artHtml}</div>
         <div class="card-info">
+          <div class="card-desc">${pl.desc}</div>
           <h3>${pl.name}</h3>
           <div class="card-artists">${pl.top_artists.join(', ')}</div>
         </div>

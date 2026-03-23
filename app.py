@@ -45,80 +45,54 @@ MOOD_EMOJIS = {
 
 # ─── CLASSIFICATION SYSTEM 2.0 ──────────────────────────────────────────────
 
-GENRE_MAP = {
-    # ENERGY 0-1 (Calm/Sleep/Focus)
-    "ambient":        {"energy": 0, "tone": "NEUTRAL", "context": "SLEEP",     "sonic": ["INSTRUMENTAL", "LO_FI"]},
-    "meditation":      {"energy": 0, "tone": "TENDER",  "context": "SLEEP",     "sonic": ["INSTRUMENTAL"]},
-    "drone":          {"energy": 0, "tone": "DARK",    "context": "SLEEP",     "sonic": ["INSTRUMENTAL"]},
-    "lo-fi":          {"energy": 1, "tone": "NEUTRAL", "context": "FOCUS",     "sonic": ["LO_FI", "INSTRUMENTAL"]},
-    "classical":      {"energy": 1, "tone": "TENDER",  "context": "FOCUS",     "sonic": ["ORCHESTRAL", "ACOUSTIC"]},
-    "piano":          {"energy": 1, "tone": "TENDER",  "context": "SLEEP",     "sonic": ["INSTRUMENTAL", "ACOUSTIC"]},
-    "chamber":        {"energy": 1, "tone": "NEUTRAL", "context": "FOCUS",     "sonic": ["ORCHESTRAL"]},
-    "acoustic":       {"energy": 1, "tone": "TENDER",  "context": "NOSTALGIA", "sonic": ["ACOUSTIC"]},
-
-    # ENERGY 2 (Moderate/Background)
-    "jazz":           {"energy": 2, "tone": "NEUTRAL", "context": "SOCIAL",    "sonic": ["LIVE_FEEL", "ACOUSTIC"]},
-    "bossa nova":     {"energy": 1, "tone": "JOYFUL",  "context": "DRIVING",   "sonic": ["ACOUSTIC"]},
-    "folk":           {"energy": 2, "tone": "TENDER",  "context": "NOSTALGIA", "sonic": ["ACOUSTIC", "VOCAL_HEAVY"]},
-    "singer-songwriter": {"energy": 2, "tone": "SAD",     "context": "HEARTBREAK","sonic": ["ACOUSTIC", "VOCAL_HEAVY"]},
-    "soul":           {"energy": 2, "tone": "JOYFUL",  "context": "NOSTALGIA", "sonic": ["VOCAL_HEAVY", "ACOUSTIC"]},
-    "blues":          {"energy": 2, "tone": "SAD",     "context": "LATE_NIGHT","sonic": ["LIVE_FEEL", "RAW"]},
-    "reggae":         {"energy": 2, "tone": "JOYFUL",  "context": "ADVENTURE", "sonic": ["LIVE_FEEL"]},
-    "smooth":         {"energy": 2, "tone": "TENDER",  "context": "LATE_NIGHT","sonic": ["PRODUCED"]},
-    "soft rock":      {"energy": 2, "tone": "NEUTRAL", "context": "DRIVING",   "sonic": ["LIVE_FEEL"]},
-    "r&b":            {"energy": 2, "tone": "TENDER",  "context": "LATE_NIGHT","sonic": ["VOCAL_HEAVY", "PRODUCED"]},
-
-    # ENERGY 3 (Active/Engaged)
-    "indie rock":     {"energy": 3, "tone": "NEUTRAL", "context": "DRIVING",   "sonic": ["LIVE_FEEL", "RAW"]},
-    "alternative":     {"energy": 3, "tone": "DARK",    "context": "LATE_NIGHT","sonic": ["RAW"]},
-    "pop":            {"energy": 3, "tone": "JOYFUL",  "context": "SOCIAL",    "sonic": ["PRODUCED"]},
-    "hip hop":        {"energy": 3, "tone": "NEUTRAL", "context": "SOCIAL",    "sonic": ["PRODUCED"]},
-    "funk":           {"energy": 3, "tone": "JOYFUL",  "context": "SOCIAL",    "sonic": ["LIVE_FEEL", "PRODUCED"]},
-    "britpop":        {"energy": 3, "tone": "HOPEFUL", "context": "ADVENTURE", "sonic": ["LIVE_FEEL"]},
-    "synthpop":       {"energy": 3, "tone": "HOPEFUL", "context": "SOCIAL",    "sonic": ["ELECTRONIC", "PRODUCED"]},
-    "country":        {"energy": 2, "tone": "NEUTRAL", "context": "DRIVING",   "sonic": ["ACOUSTIC", "VOCAL_HEAVY"]},
-
-    # ENERGY 4 (High Intensity)
-    "dance pop":      {"energy": 4, "tone": "EUPHORIC", "context": "SOCIAL",    "sonic": ["ELECTRONIC", "PRODUCED"]},
-    "edm":            {"energy": 4, "tone": "EUPHORIC", "context": "WORKOUT",   "sonic": ["ELECTRONIC"]},
-    "techno":         {"energy": 4, "tone": "DARK",    "context": "LATE_NIGHT","sonic": ["ELECTRONIC", "INSTRUMENTAL"]},
-    "metal":          {"energy": 4, "tone": "DARK",    "context": "WORKOUT",   "sonic": ["RAW", "LIVE_FEEL"]},
-    "punk":           {"energy": 4, "tone": "DARK",    "context": "WORKOUT",   "sonic": ["RAW"]},
-    "hardcore":       {"energy": 4, "tone": "DARK",    "context": "WORKOUT",   "sonic": ["RAW"]},
-    "trap":           {"energy": 4, "tone": "DARK",    "context": "WORKOUT",   "sonic": ["ELECTRONIC", "PRODUCED"]},
-    "house":          {"energy": 4, "tone": "JOYFUL",  "context": "SOCIAL",    "sonic": ["ELECTRONIC"]},
-    "disco":          {"energy": 4, "tone": "EUPHORIC", "context": "SOCIAL",    "sonic": ["LIVE_FEEL", "PRODUCED"]},
-    "rap":            {"energy": 3, "tone": "DARK",    "context": "WORKOUT",   "sonic": ["VOCAL_HEAVY"]},
-    "rock":           {"energy": 3, "tone": "NEUTRAL", "context": "DRIVING",   "sonic": ["RAW", "LIVE_FEEL"]},
-    "hard rock":      {"energy": 4, "tone": "DARK",    "context": "WORKOUT",   "sonic": ["RAW", "LIVE_FEEL"]},
+GENRE_SCORING = {
+    # ENERGY (0-4), TONE, CONTEXT, SONIC_TAGS
+    "ambient":        (0, "NEUTRAL",  "SLEEP",     ["INSTRUMENTAL", "LO_FI"]),
+    "lo-fi":          (1, "NEUTRAL",  "FOCUS",     ["LO_FI", "INSTRUMENTAL"]),
+    "classical":      (1, "TENDER",   "FOCUS",     ["ORCHESTRAL", "ACOUSTIC"]),
+    "jazz":           (2, "NEUTRAL",  "SOCIAL",    ["LIVE_FEEL", "ACOUSTIC"]),
+    "folk":           (2, "TENDER",   "NOSTALGIA", ["ACOUSTIC", "VOCAL_HEAVY"]),
+    "singer-songwriter": (2, "SAD",      "HEARTBREAK",["ACOUSTIC", "VOCAL_HEAVY"]),
+    "pop":            (3, "JOYFUL",   "SOCIAL",    ["PRODUCED"]),
+    "indie rock":     (3, "NEUTRAL",  "DRIVING",   ["LIVE_FEEL", "RAW"]),
+    "alternative":     (3, "DARK",     "LATE_NIGHT",["RAW"]),
+    "dance pop":      (4, "EUPHORIC", "SOCIAL",    ["ELECTRONIC", "PRODUCED"]),
+    "edm":            (4, "EUPHORIC", "WORKOUT",   ["ELECTRONIC"]),
+    "techno":         (4, "DARK",     "LATE_NIGHT",["ELECTRONIC", "INSTRUMENTAL"]),
+    "metal":          (4, "DARK",     "WORKOUT",   ["RAW", "LIVE_FEEL"]),
+    "punk":           (4, "DARK",     "WORKOUT",   ["RAW"]),
+    "rap":            (3, "DARK",     "WORKOUT",   ["VOCAL_HEAVY", "PRODUCED"]),
+    "r&b":            (2, "TENDER",   "LATE_NIGHT",["VOCAL_HEAVY", "PRODUCED"]),
+    "soul":           (2, "JOYFUL",   "NOSTALGIA", ["VOCAL_HEAVY", "ACOUSTIC"]),
+    "reggae":         (2, "JOYFUL",   "ADVENTURE", ["LIVE_FEEL"]),
 }
 
 NLP_SIGNALS = {
-    "DARK":       ["night", "dark", "death", "blood", "void", "shadow", "kill", "devil", "hell", "burn", "evil", "black", "doom", "kill"],
-    "SAD":        ["cry", "tears", "goodbye", "alone", "broken", "miss", "hurt", "lost", "empty", "never", "blue", "melancholy", "sad"],
-    "JOYFUL":     ["sunshine", "happy", "good time", "party", "dance", "celebrate", "love", "summer", "free", "smile", "fun", "bright"],
-    "TENDER":     ["hold", "close", "soft", "dream", "gentle", "together", "home", "heart", "warm", "darling", "baby", "love"],
-    "EUPHORIC":   ["sky", "star", "light", "higher", "fly", "heaven", "magic", "rising", "fireworks", "transcend"],
-    "LATE_NIGHT": ["midnight", "3am", "late", "insomnia", "moonlight", "after dark", "sleepy", "quiet", "city"],
-    "WORKOUT":    ["power", "beast", "fire", "run", "grind", "hustle", "stronger", "energy", "training", "fast", "speed"],
+    "DARK":       ["night", "dark", "death", "blood", "void", "shadow", "kill", "devil", "hell", "burn", "evil"],
+    "SAD":        ["cry", "tears", "goodbye", "alone", "broken", "miss", "hurt", "lost", "empty", "never", "blue"],
+    "JOYFUL":     ["sunshine", "happy", "good time", "party", "dance", "celebrate", "love", "summer", "free", "bright"],
+    "TENDER":     ["hold", "close", "soft", "dream", "gentle", "together", "home", "heart", "warm", "baby"],
+    "EUPHORIC":   ["sky", "star", "light", "higher", "fly", "heaven", "magic", "rising", "fireworks"],
+    "LATE_NIGHT": ["midnight", "3am", "late", "insomnia", "moonlight", "after dark"],
+    "WORKOUT":    ["power", "beast", "fire", "run", "grind", "hustle", "stronger", "energy", "fast"],
 }
 
-OVERRIDE_ARTISTS = {
+ARTIST_OVERRIDES = {
     "Radiohead": {"tone": "DARK", "context": "LATE_NIGHT"},
     "Lana Del Rey": {"tone": "SAD", "context": "NOSTALGIA"},
     "Metallica": {"energy": 4, "context": "WORKOUT"},
     "Enya": {"energy": 0, "context": "SLEEP"},
 }
 
-def classify_track(track):
-    """Moodify 2.0 Multi-dimensional Scoring System"""
+def score_track(track):
+    """Moodify 2.0 Multi-dimensional Scoring Engine"""
     name   = track.get("name", "").lower()
     album  = track.get("album", "").lower()
-    genres = track.get("genres", [])
+    genres = [g.lower() for g in track.get("genres", [])]
     artist = track.get("artist", "").split(",")[0].strip()
     year   = track.get("release_year", 2020)
 
-    # Era Dimension (Fixed)
+    # Era Dimension
     if year < 1980:   era = "PRE_80s"
     elif year < 1990: era = "80s"
     elif year < 2000: era = "90s"
@@ -126,67 +100,55 @@ def classify_track(track):
     elif year < 2020: era = "10s"
     else:             era = "20s"
 
-    # Default Scores
-    scores = {
-        "energy":  [2], # Default Moderate
+    # Profile initialization
+    profile = {
+        "energy":  [2], # Default moderate
         "tone":    {"DARK":0, "SAD":0, "NEUTRAL":1, "TENDER":0, "HOPEFUL":0, "JOYFUL":0, "EUPHORIC":0},
         "context": {"FOCUS":0, "DRIVING":1, "WORKOUT":0, "SOCIAL":0, "SLEEP":0, "HEARTBREAK":0, "NOSTALGIA":0, "ADVENTURE":0, "LATE_NIGHT":0},
         "sonic":   []
     }
 
-    # Weighting: Genre & Sub-genre Inference
+    # 1. Artist Genres (40%)
     for g in genres:
-        matched = False
-        for kw, val in GENRE_MAP.items():
+        for kw, (en, to, co, so) in GENRE_SCORING.items():
             if kw in g:
-                scores["energy"].append(val["energy"])
-                scores["tone"][val["tone"]] += 3
-                scores["context"][val["context"]] += 3
-                scores["sonic"].extend(val.get("sonic", []))
-                matched = True
+                profile["energy"].append(en)
+                profile["tone"][to] += 4
+                profile["context"][co] += 4
+                profile["sonic"].extend(so)
 
-        # Inference for unknown genres
-        if not matched:
-            if "metal" in g: scores["energy"].append(4); scores["tone"]["DARK"] += 2; scores["context"]["WORKOUT"] += 1
-            elif "punk" in g: scores["energy"].append(4); scores["tone"]["DARK"] += 2; scores["context"]["WORKOUT"] += 1
-            elif "pop" in g: scores["energy"].append(3); scores["tone"]["JOYFUL"] += 2; scores["context"]["SOCIAL"] += 1
-            elif "rock" in g: scores["energy"].append(3); scores["tone"]["NEUTRAL"] += 2; scores["context"]["DRIVING"] += 1
-            elif "jazz" in g: scores["energy"].append(2); scores["tone"]["NEUTRAL"] += 2; scores["context"]["SOCIAL"] += 1
-            elif "folk" in g: scores["energy"].append(2); scores["tone"]["TENDER"] += 2; scores["context"]["NOSTALGIA"] += 1
-            elif "ambient" in g: scores["energy"].append(0); scores["tone"]["NEUTRAL"] += 2; scores["context"]["SLEEP"] += 1
-
-    # Weighting: NLP Name/Album (30%)
-    # Use word boundaries for better keyword matching
+    # 2. Track/Album NLP (30%)
     meta_str = f"{name} {album}"
-    for tone, signals in NLP_SIGNALS.items():
-        for s in signals:
-            if re.search(r'\b' + re.escape(s) + r'\b', meta_str):
-                if tone in scores["tone"]: scores["tone"][tone] += 3
-                if tone in scores["context"]: scores["context"][tone] += 3
-                if tone == "WORKOUT": scores["energy"].append(4)
+    for tone, keywords in NLP_SIGNALS.items():
+        for kw in keywords:
+            if re.search(r'\b' + re.escape(kw) + r'\b', meta_str):
+                if tone in profile["tone"]: profile["tone"][tone] += 3
+                if tone in profile["context"]: profile["context"][tone] += 3
+                if tone == "WORKOUT": profile["energy"].append(4)
 
-    # Weighting: Artist Overrides (10%)
-    if artist in OVERRIDE_ARTISTS:
-        ov = OVERRIDE_ARTISTS[artist]
-        if "energy" in ov: scores["energy"].append(ov["energy"])
-        if "tone" in ov: scores["tone"][ov["tone"]] += 5
-        if "context" in ov: scores["context"][ov["context"]] += 5
+    # 3. Artist Overrides (10%)
+    if artist in ARTIST_OVERRIDES:
+        ov = ARTIST_OVERRIDES[artist]
+        if "energy" in ov: profile["energy"].append(ov["energy"])
+        if "tone" in ov: profile["tone"][ov["tone"]] += 5
+        if "context" in ov: profile["context"][ov["context"]] += 5
 
-    # Era Impact on Nostalgia
+    # 4. Release Year (20%)
     if era in ["PRE_80s", "80s", "90s"]:
-        scores["context"]["NOSTALGIA"] += 2
+        profile["context"]["NOSTALGIA"] += 2
 
-    # Resolve Dimensions
-    # prioritize highest energy signal if high, else average
-    if any(e >= 4 for e in scores["energy"]): energy = 4
-    elif any(e >= 3 for e in scores["energy"]): energy = 3
-    else: energy = int(sum(scores["energy"]) / len(scores["energy"]))
+    # Final Resolution
+    # Energy: Weighted avg, prioritize high
+    if any(e >= 4 for e in profile["energy"]): energy = 4
+    elif any(e >= 3 for e in profile["energy"]): energy = 3
+    else: energy = int(sum(profile["energy"]) / len(profile["energy"]))
 
-    tone = max(scores["tone"], key=scores["tone"].get)
-    context = max(scores["context"], key=scores["context"].get)
+    # Max score resolution
+    tone = max(profile["tone"], key=profile["tone"].get)
+    context = max(profile["context"], key=profile["context"].get)
 
-    # Sonic tags (Top 3 unique)
-    sonic = sorted(list(set(scores["sonic"])), key=lambda x: scores["sonic"].count(x), reverse=True)[:3]
+    # Sonic tags (top unique)
+    sonic = sorted(list(set(profile["sonic"])), key=lambda x: profile["sonic"].count(x), reverse=True)[:2]
     if not sonic: sonic = ["PRODUCED"]
 
     return {
@@ -235,8 +197,21 @@ def chunk(lst, size):
 # ─── ROUTES ──────────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
+    user_info = None
+    if "access_token" in session:
+        try:
+            user = api_get("/me", session["access_token"])
+            images = user.get("images", [])
+            image_url = images[0].get("url", "") if images else ""
+            user_info = {
+                "name": user.get("display_name", user["id"]),
+                "image": image_url
+            }
+        except: pass
+
     return render_template("index.html",
                            logged_in="access_token" in session,
+                           user_info=user_info,
                            client_id=CLIENT_ID)
 
 @app.route("/login")
@@ -284,20 +259,20 @@ def me():
 # ─── PLAYLIST RECIPES ────────────────────────────────────────────────────────
 
 PLAYLIST_RECIPES = [
-    {"id": "3am_drive",      "name": "3am Drive",          "emoji": "🌃", "req": {"context": "LATE_NIGHT", "energy": [1,2,3], "tone": ["DARK", "NEUTRAL", "SAD"]}},
-    {"id": "gym_beast",      "name": "Gym Beast Mode",     "emoji": "🔥", "req": {"context": "WORKOUT",    "energy": [3,4],   "tone": ["DARK", "EUPHORIC", "JOYFUL"]}},
-    {"id": "sunday_morning", "name": "Sunday Morning",      "emoji": "☕", "req": {"energy": [0,1,2],       "tone": ["TENDER", "HOPEFUL"], "sonic": ["ACOUSTIC"]}},
-    {"id": "broken_heart",   "name": "Broken Heart at 2am","emoji": "💔", "req": {"context": "HEARTBREAK", "tone": ["SAD", "DARK"]}},
-    {"id": "pre_game",       "name": "Pre-Game Hype",      "emoji": "🥂", "req": {"context": "SOCIAL",     "energy": [3,4], "tone": ["EUPHORIC", "JOYFUL"]}},
-    {"id": "deep_focus",     "name": "Deep Focus",         "emoji": "🧠", "req": {"context": "FOCUS",      "energy": [0,1,2]}},
-    {"id": "road_trip",      "name": "Road Trip Anthems",  "emoji": "🚗", "req": {"context": "ADVENTURE",  "energy": [2,3,4]}},
-    {"id": "rainy_day",      "name": "Rainy Day Indie",    "emoji": "🌧️", "req": {"energy": [1,2,3],       "tone": ["SAD", "NEUTRAL"]}},
-    {"id": "club_ready",     "name": "Club Ready",         "emoji": "💃", "req": {"context": "SOCIAL",     "energy": [4],   "tone": ["EUPHORIC", "DARK"]}},
-    {"id": "nostalgia_90s",  "name": "90s Nostalgia",      "emoji": "📼", "req": {"era": ["90s"]}},
-    {"id": "nostalgia_80s",  "name": "80s Nostalgia",      "emoji": "🕹️", "req": {"era": ["80s"]}},
-    {"id": "nostalgia_00s",  "name": "00s Nostalgia",      "emoji": "🎧", "req": {"era": ["00s"]}},
-    {"id": "chill_vibes",    "name": "Mellow Gold",        "emoji": "🌙", "req": {"energy": [1,2],       "tone": ["NEUTRAL", "TENDER"]}},
-    {"id": "high_energy",    "name": "Electric Pulse",     "emoji": "⚡", "req": {"energy": [4],         "sonic": ["ELECTRONIC", "PRODUCED"]}},
+    {"id": "3am_drive",      "name": "3am Drive",          "emoji": "🌃", "desc": "Nocturnal · Moody", "req": {"context": "LATE_NIGHT", "energy": [1,2,3], "tone": ["DARK", "NEUTRAL", "SAD"]}},
+    {"id": "gym_beast",      "name": "Gym Beast Mode",     "emoji": "🔥", "desc": "Intense · Driven", "req": {"context": "WORKOUT",    "energy": [3,4],   "tone": ["DARK", "EUPHORIC", "JOYFUL"]}},
+    {"id": "sunday_morning", "name": "Sunday Morning",      "emoji": "☕", "desc": "Warm · Gentle", "req": {"energy": [0,1,2],       "tone": ["TENDER", "HOPEFUL"], "sonic": ["ACOUSTIC"]}},
+    {"id": "broken_heart",   "name": "Broken Heart at 2am","emoji": "💔", "desc": "Raw · Emotional", "req": {"context": "HEARTBREAK", "tone": ["SAD", "DARK"]}},
+    {"id": "pre_game",       "name": "Pre-Game Hype",      "emoji": "🥂", "desc": "Euphoric · Anthemic", "req": {"context": "SOCIAL",     "energy": [3,4], "tone": ["EUPHORIC", "JOYFUL"]}},
+    {"id": "deep_focus",     "name": "Deep Focus",         "emoji": "🧠", "desc": "Calm · Productive", "req": {"context": "FOCUS",      "energy": [0,1,2]}},
+    {"id": "road_trip",      "name": "Road Trip Anthems",  "emoji": "🚗", "desc": "Steady · Rhythmic", "req": {"context": "ADVENTURE",  "energy": [2,3,4]}},
+    {"id": "rainy_day",      "name": "Rainy Day Indie",    "emoji": "🌧️", "desc": "Storytelling · Moody", "req": {"energy": [1,2,3],       "tone": ["SAD", "NEUTRAL"]}},
+    {"id": "club_ready",     "name": "Club Ready",         "emoji": "💃", "desc": "Electronic · Peak", "req": {"context": "SOCIAL",     "energy": [4],   "tone": ["EUPHORIC", "DARK"]}},
+    {"id": "nostalgia_90s",  "name": "90s Nostalgia",      "emoji": "📼", "desc": "Timeless · Classic", "req": {"era": ["90s"]}},
+    {"id": "nostalgia_80s",  "name": "80s Nostalgia",      "emoji": "🕹️", "desc": "Retro · Vintage", "req": {"era": ["80s"]}},
+    {"id": "nostalgia_00s",  "name": "00s Nostalgia",      "emoji": "🎧", "desc": "Millennial · Anthems", "req": {"era": ["00s"]}},
+    {"id": "chill_vibes",    "name": "Mellow Gold",        "emoji": "🌙", "desc": "Smooth · Balanced", "req": {"energy": [1,2],       "tone": ["NEUTRAL", "TENDER"]}},
+    {"id": "high_energy",    "name": "Electric Pulse",     "emoji": "⚡", "desc": "High Energy · Pulse", "req": {"energy": [4],         "sonic": ["ELECTRONIC", "PRODUCED"]}},
 ]
 
 @app.route("/api/analyze")
@@ -367,13 +342,14 @@ def analyze():
 
     # 3. Classify Tracks
     classified_tracks = []
-    for t in tracks:
+    total_tracks = len(tracks)
+    for i, t in enumerate(tracks):
         t["genres"] = []
         for aid in t["artist_ids"]:
             t["genres"].extend(artist_genres.get(aid, []))
         t["genres"] = list(set(t["genres"]))
 
-        t["profile"] = classify_track(t)
+        t["profile"] = score_track(t)
         classified_tracks.append(t)
 
     # 4. Generate Playlists from Recipes
@@ -399,7 +375,7 @@ def analyze():
                 if t["image"] and len(match_arts) < 4: match_arts.append(t["image"])
                 if len(match_artists) < 10: match_artists.append(t.get("artist", "").split(",")[0])
 
-        if len(match_uris) >= 15:
+        if len(match_uris) >= 10:
             # Handle Volumes (split every 60 tracks)
             vols = list(chunk(match_uris, 60))
             for i, vol_uris in enumerate(vols):
@@ -410,18 +386,27 @@ def analyze():
                     "id": f"{recipe['id']}_{i}",
                     "name": name,
                     "emoji": recipe["emoji"],
+                    "desc": recipe.get("desc", ""),
                     "track_count": len(vol_uris),
                     "top_artists": sorted(list(set(match_artists)), key=lambda x: match_artists.count(x), reverse=True)[:3],
                     "album_arts": match_arts,
                     "energy_level": recipe["req"].get("energy", [2])[0],
                     "tone": recipe["req"].get("tone", ["NEUTRAL"])[0],
-                    "context": recipe["req"].get("context", "DRIVING"),
                     "uris": vol_uris
                 })
 
+    # Group tracks for UI console reasoning feed
+    track_details = []
+    for t in classified_tracks[:50]: # limit to 50 for performance
+        track_details.append({
+            "name": t["name"],
+            "profile": t["profile"]
+        })
+
     return jsonify({
         "total": len(tracks),
-        "playlists": generated_playlists
+        "playlists": generated_playlists,
+        "debug_feed": track_details
     })
 
 @app.route("/api/create_playlists", methods=["POST"])
