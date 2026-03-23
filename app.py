@@ -44,10 +44,15 @@ MOOD_EMOJIS = {
 
 # ─── MOOD LOGIC ──────────────────────────────────────────────────────────────
 def assign_mood(track):
+    """
+    Tiered classification logic for robustness across API restrictions.
+    Returns (mood_name, method_used).
+    """
     f = track.get("audio_features", {})
     genres = [g.lower() for g in track.get("genres", [])]
+    meta_str = f"{track.get('name', '')} {track.get('album', '')} {' '.join(genres)}".lower()
 
-    # ── Audio features (only works for older/grandfathered Spotify apps) ──
+    # Priority 1: Audio features (works for grandfathered Spotify apps)
     if f and any(f.get(k) is not None for k in ("energy", "valence", "danceability")):
         e   = f.get("energy", 0.5)
         v   = f.get("valence", 0.5)
@@ -55,53 +60,49 @@ def assign_mood(track):
         a   = f.get("acousticness", 0.5)
         ins = f.get("instrumentalness", 0)
 
+        res = "Cruising / Everyday"
         if ins > 0.5:
-            return "Ambient / Chill Instrumental" if e < 0.4 else "Energetic Instrumental"
-        if e >= 0.75:
-            if v >= 0.6 and d >= 0.6: return "Hype / Party"
-            if v < 0.4:               return "Dark & Intense"
-            return "Pump-Up / Workout"
-        if 0.4 <= e < 0.75:
-            if v >= 0.6 and d >= 0.6: return "Feel-Good / Upbeat"
-            if v >= 0.6 and d < 0.6:  return "Sunny / Laid-Back"
-            if v < 0.4:               return "Melancholic / Moody"
-            if a >= 0.4:               return "Acoustic / Soulful"
-            return "Cruising / Everyday"
-        if e < 0.4:
-            if a >= 0.5:  return "Calm Acoustic"
-            if v < 0.35:  return "Sad / Reflective"
-            return "Relaxed / Mellow"
+            res = "Ambient / Chill Instrumental" if e < 0.4 else "Energetic Instrumental"
+        elif e >= 0.75:
+            if v >= 0.6 and d >= 0.6: res = "Hype / Party"
+            elif v < 0.4:             res = "Dark & Intense"
+            else:                     res = "Pump-Up / Workout"
+        elif 0.4 <= e < 0.75:
+            if v >= 0.6 and d >= 0.6: res = "Feel-Good / Upbeat"
+            elif v >= 0.6 and d < 0.6:  res = "Sunny / Laid-Back"
+            elif v < 0.4:               res = "Melancholic / Moody"
+            elif a >= 0.4:               res = "Acoustic / Soulful"
+            else:                        res = "Cruising / Everyday"
+        elif e < 0.4:
+            if a >= 0.5:  res = "Calm Acoustic"
+            elif v < 0.35:  res = "Sad / Reflective"
+            else:           res = "Relaxed / Mellow"
 
-    # ── Genre-based classification (primary path for most apps now) ──
-    if genres:
-        genre_str = " ".join(genres)  # search across all genres at once
+        if res != "Cruising / Everyday":
+            return res, "audio_features"
 
-        if any(kw in genre_str for kw in ["dance", "edm", "party", "house", "techno", "trance", "k-pop", "reggaeton", "disco"]):
-            return "Hype / Party"
-        if any(kw in genre_str for kw in ["metal", "punk", "hardcore", "trap", "phonk", "dubstep", "workout", "gym"]):
-            return "Pump-Up / Workout"
-        if any(kw in genre_str for kw in ["industrial", "goth", "doom", "dark", "black metal", "death metal", "ebm"]):
-            return "Dark & Intense"
-        if any(kw in genre_str for kw in ["indie pop", "happy", "summer", "britpop", "j-pop", "nu-disco", "motown", "funk"]):
-            return "Feel-Good / Upbeat"
-        if any(kw in genre_str for kw in ["reggae", "surf", "tropical", "folk pop", "ska", "afrobeats", "bossa nova"]):
-            return "Sunny / Laid-Back"
-        if any(kw in genre_str for kw in ["indie rock", "alternative", "shoegaze", "emo", "grunge", "post-punk", "dream pop", "slowcore"]):
-            return "Melancholic / Moody"
-        if any(kw in genre_str for kw in ["soul", "jazz", "blues", "folk", "acoustic", "neo soul", "bluegrass", "country", "r&b"]):
-            return "Acoustic / Soulful"
-        if any(kw in genre_str for kw in ["classical", "piano", "chamber", "baroque", "singer-songwriter"]):
-            return "Calm Acoustic"
-        if any(kw in genre_str for kw in ["ambient", "chillout", "lo-fi", "downtempo", "new age", "meditation", "minimal"]):
-            return "Ambient / Chill Instrumental"
-        if any(kw in genre_str for kw in ["chill", "smooth", "mellow", "lounge", "soft rock", "easy listening", "yacht rock"]):
-            return "Relaxed / Mellow"
-        if any(kw in genre_str for kw in ["sad", "melancholy", "ballad", "dark folk", "modern classical"]):
-            return "Sad / Reflective"
-        if any(kw in genre_str for kw in ["hip hop", "rap", "pop"]):
-            return "Cruising / Everyday"
+    # Priority 2: Robust Metadata Keyword search (primary path now)
+    keyword_map = [
+        ("Ambient / Chill Instrumental", ["ambient", "lofi", "lo-fi", "downtempo", "minimal", "meditation", "new age", "chill instrumental"]),
+        ("Energetic Instrumental",       ["techno", "house", "trance", "progressive", "drum and bass", "idm"]),
+        ("Hype / Party",                ["dance", "edm", "party", "club", "disco", "remix", "k-pop", "reggaeton"]),
+        ("Pump-Up / Workout",           ["metal", "hardcore", "punk", "workout", "gym", "trap", "phonk", "dubstep"]),
+        ("Dark & Intense",              ["industrial", "goth", "doom", "dark", "black metal", "death metal"]),
+        ("Feel-Good / Upbeat",          ["happy", "summer", "sunny", "upbeat", "good vibes", "funk", "motown", "nu-disco"]),
+        ("Sunny / Laid-Back",           ["reggae", "surf", "tropical", "folk pop", "afrobeats", "bossa nova"]),
+        ("Melancholic / Moody",         ["moody", "alternative", "shoegaze", "emo", "grunge", "slowcore", "dream pop"]),
+        ("Acoustic / Soulful",          ["soul", "jazz", "blues", "folk", "acoustic", "neo soul", "bluegrass", "unplugged"]),
+        ("Calm Acoustic",               ["classical", "piano", "chamber", "soft", "peaceful", "baroque", "singer-songwriter"]),
+        ("Relaxed / Mellow",            ["smooth", "mellow", "lounge", "soft rock", "easy listening", "yacht rock", "chill", "relaxed"]),
+        ("Sad / Reflective",            ["sad", "melancholy", "ballad", "dark folk", "modern classical", "heartbreak"]),
+        ("Cruising / Everyday",         ["pop", "rock", "hip hop", "rap", "r&b", "indie", "hits"])
+    ]
 
-    return "Cruising / Everyday"
+    for mood, keywords in keyword_map:
+        if any(kw in meta_str for kw in keywords):
+            return mood, "metadata_match"
+
+    return "Cruising / Everyday", "default"
 
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
 def api_get(path, token, params=None):
@@ -208,8 +209,11 @@ def analyze():
     # Paginate through all liked songs
     url    = "/me/tracks"
     params = {"limit": 50, "offset": 0}
+    total_to_fetch = None
     while True:
         data  = api_get(url, token, params)
+        if total_to_fetch is None:
+            total_to_fetch = data.get("total", 0)
         items = data.get("items", [])
         if not items:
             break
@@ -229,6 +233,7 @@ def analyze():
         if data.get("next") is None:
             break
         params["offset"] += 50
+        print(f"DEBUG: Fetched {len(tracks)}/{total_to_fetch} tracks...")
         time.sleep(0.1)
 
     # Fetch audio features in batches of 50
@@ -344,8 +349,9 @@ def analyze():
         aid = t.get("primary_artist_id")
         t["genres"] = artist_genres.get(aid, []) if aid else []
 
-        mood = assign_mood(t)
+        mood, method = assign_mood(t)
         t["mood"] = mood
+        t["method"] = method
         mood_map.setdefault(mood, []).append(t)
 
     # Build summary

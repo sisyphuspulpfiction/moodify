@@ -451,7 +451,7 @@ function renderResults(data) {
         <img src="${s.image}" alt="" onerror="this.style.display='none'">
         <div>
           <div class="s-name">${esc(s.name)}</div>
-          <div class="s-artist">${esc(s.artist)}</div>
+          <div class="s-artist">${esc(s.artist)} <span style="font-size:10px; opacity:0.6">· via ${s.method.replace('_', ' ')}</span></div>
         </div>
       </div>`).join('');
 
