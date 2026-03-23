@@ -82,20 +82,60 @@ def assign_mood(track):
             return res, "audio_features"
 
     # Priority 2: Robust Metadata Keyword search (primary path now)
+    # Categorized by specificity and association
     keyword_map = [
-        ("Ambient / Chill Instrumental", ["ambient", "lofi", "lo-fi", "downtempo", "minimal", "meditation", "new age", "chill instrumental"]),
-        ("Energetic Instrumental",       ["techno", "house", "trance", "progressive", "drum and bass", "idm"]),
-        ("Hype / Party",                ["dance", "edm", "party", "club", "disco", "remix", "k-pop", "reggaeton"]),
-        ("Pump-Up / Workout",           ["metal", "hardcore", "punk", "workout", "gym", "trap", "phonk", "dubstep"]),
-        ("Dark & Intense",              ["industrial", "goth", "doom", "dark", "black metal", "death metal"]),
-        ("Feel-Good / Upbeat",          ["happy", "summer", "sunny", "upbeat", "good vibes", "funk", "motown", "nu-disco"]),
-        ("Sunny / Laid-Back",           ["reggae", "surf", "tropical", "folk pop", "afrobeats", "bossa nova"]),
-        ("Melancholic / Moody",         ["moody", "alternative", "shoegaze", "emo", "grunge", "slowcore", "dream pop"]),
-        ("Acoustic / Soulful",          ["soul", "jazz", "blues", "folk", "acoustic", "neo soul", "bluegrass", "unplugged"]),
-        ("Calm Acoustic",               ["classical", "piano", "chamber", "soft", "peaceful", "baroque", "singer-songwriter"]),
-        ("Relaxed / Mellow",            ["smooth", "mellow", "lounge", "soft rock", "easy listening", "yacht rock", "chill", "relaxed"]),
-        ("Sad / Reflective",            ["sad", "melancholy", "ballad", "dark folk", "modern classical", "heartbreak"]),
-        ("Cruising / Everyday",         ["pop", "rock", "hip hop", "rap", "r&b", "indie", "hits"])
+        ("Ambient / Chill Instrumental", [
+            "ambient", "lofi", "lo-fi", "downtempo", "minimal", "meditation", "new age", "chill instrumental",
+            "drone", "background", "study beats", "peaceful instrumental", "atmospheric"
+        ]),
+        ("Energetic Instrumental", [
+            "techno", "house", "trance", "progressive house", "drum and bass", "idm", "glitch", "eurodance",
+            "big room", "hardstyle", "jungle", "breakbeat", "instrumental rock"
+        ]),
+        ("Hype / Party", [
+            "dance", "edm", "party", "club", "disco", "remix", "k-pop", "reggaeton", "synthpop", "nu-disco",
+            "electropop", "dance-pop", "afro house", "bounce", "festival"
+        ]),
+        ("Pump-Up / Workout", [
+            "metal", "hardcore", "punk", "workout", "gym", "trap", "phonk", "dubstep", "thrash", "deathcore",
+            "power metal", "skate punk", "grindcore", "heavy metal", "shred"
+        ]),
+        ("Dark & Intense", [
+            "industrial", "goth", "doom", "dark", "black metal", "death metal", "ebm", "witch house",
+            "darkwave", "post-industrial", "funeral doom", "noise"
+        ]),
+        ("Feel-Good / Upbeat", [
+            "happy", "summer", "sunny", "upbeat", "good vibes", "funk", "motown", "britpop", "j-pop",
+            "bubblegum", "classic pop", "feel good", "bright"
+        ]),
+        ("Sunny / Laid-Back", [
+            "reggae", "surf", "tropical", "folk pop", "afrobeats", "bossa nova", "ska", "island",
+            "summer pop", "yacht rock", "beach", "soft lounge"
+        ]),
+        ("Melancholic / Moody", [
+            "moody", "alternative", "shoegaze", "emo", "grunge", "slowcore", "dream pop", "indie rock",
+            "post-punk", "sad indie", "dark pop", "atmospheric rock"
+        ]),
+        ("Acoustic / Soulful", [
+            "soul", "jazz", "blues", "folk", "acoustic", "neo soul", "bluegrass", "unplugged", "singer-songwriter",
+            "gospel", "motown soul", "americana", "roots"
+        ]),
+        ("Calm Acoustic", [
+            "classical", "piano", "chamber", "soft", "peaceful", "baroque", "meditative acoustic",
+            "solo piano", "contemporary classical", "quiet", "lullaby"
+        ]),
+        ("Relaxed / Mellow", [
+            "smooth", "mellow", "lounge", "soft rock", "easy listening", "chill", "relaxed",
+            "cool jazz", "chillout", "trip hop", "downtempo pop", "mellow gold"
+        ]),
+        ("Sad / Reflective", [
+            "sad", "melancholy", "ballad", "dark folk", "modern classical", "heartbreak", "slow",
+            "crying", "lonely", "depressing", "gloomy"
+        ]),
+        ("Cruising / Everyday", [
+            "pop", "rock", "hip hop", "rap", "r&b", "indie", "hits", "mainstream", "contemporary",
+            "alternative r&b", "top 40", "classic rock", "folk rock", "soft pop"
+        ])
     ]
 
     for mood, keywords in keyword_map:
@@ -220,13 +260,13 @@ def analyze():
         for item in items:
             t = item["track"]
             if t:
-                # Use only the primary (first) artist to minimize API calls for genres
-                primary_artist_id = t["artists"][0]["id"] if t["artists"] else None
+                # Get all artist IDs for more comprehensive genre metadata
+                artist_ids = [a["id"] for a in t["artists"]]
                 tracks.append({
                     "uri":    t["uri"],
                     "name":   t["name"],
                     "artist": ", ".join(a["name"] for a in t["artists"]),
-                    "primary_artist_id": primary_artist_id,
+                    "artist_ids": artist_ids,
                     "album":  t["album"]["name"],
                     "image":  t["album"]["images"][-1]["url"] if t["album"]["images"] else "",
                 })
@@ -256,8 +296,7 @@ def analyze():
     # Count track occurrences per artist to prioritize fetching
     artist_counts = {}
     for t in tracks:
-        aid = t.get("primary_artist_id")
-        if aid:
+        for aid in t.get("artist_ids", []):
             artist_counts[aid] = artist_counts.get(aid, 0) + 1
 
     # Fetch artist genres as a fallback
@@ -345,9 +384,11 @@ def analyze():
         tid  = t["uri"].split(":")[-1]
         t["audio_features"] = features.get(tid, {})
 
-        # Attach genres to track for mood assignment
-        aid = t.get("primary_artist_id")
-        t["genres"] = artist_genres.get(aid, []) if aid else []
+        # Attach all artist genres to track
+        t_genres = []
+        for aid in t.get("artist_ids", []):
+            t_genres.extend(artist_genres.get(aid, []))
+        t["genres"] = list(set(t_genres))
 
         mood, method = assign_mood(t)
         t["mood"] = mood
@@ -356,7 +397,10 @@ def analyze():
 
     # Build summary
     summary = []
+    stats = {"audio_features": 0, "metadata_match": 0, "default": 0}
     for mood, songs in sorted(mood_map.items(), key=lambda x: -len(x[1])):
+        for s in songs:
+            stats[s["method"]] += 1
         summary.append({
             "mood":    mood,
             "emoji":   MOOD_EMOJIS.get(mood, "🎵"),
@@ -365,7 +409,7 @@ def analyze():
             "all_uris": [s["uri"] for s in songs],
         })
 
-    return jsonify({"total": len(tracks), "moods": summary})
+    return jsonify({"total": len(tracks), "moods": summary, "stats": stats})
 
 @app.route("/api/create_playlists", methods=["POST"])
 def create_playlists():

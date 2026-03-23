@@ -426,10 +426,17 @@ function renderResults(data) {
 
   // Stats
   const maxMood = data.moods.reduce((a,b)=>a.count>b.count?a:b,data.moods[0]);
+  const s = data.stats || {audio_features:0, metadata_match:0, default:0};
+
   document.getElementById('stats-row').innerHTML = `
     <div class="stat-card"><div class="val">${data.total}</div><div class="lbl">Liked Songs</div></div>
     <div class="stat-card"><div class="val">${data.moods.length}</div><div class="lbl">Mood Categories</div></div>
     <div class="stat-card"><div class="val">${maxMood.emoji}</div><div class="lbl">Top Mood: ${maxMood.mood}</div></div>
+    <div class="stat-card" style="grid-column: span 3; display: flex; justify-content: space-around; padding: 12px">
+      <div style="text-align:center"><div style="color:var(--accent); font-weight:bold">${s.audio_features}</div><div style="font-size:10px; color:var(--muted)">via Audio Features</div></div>
+      <div style="text-align:center"><div style="color:var(--accent); font-weight:bold">${s.metadata_match}</div><div style="font-size:10px; color:var(--muted)">via Metadata Keywords</div></div>
+      <div style="text-align:center"><div style="color:var(--danger); font-weight:bold">${s.default}</div><div style="font-size:10px; color:var(--muted)">Unmatched (Default)</div></div>
+    </div>
   `;
 
   // Chart
