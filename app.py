@@ -250,41 +250,51 @@ def analyze():
     artists_to_fetch = [aid for aid in artist_ids if aid not in artist_genres]
 
     if artists_to_fetch:
-        for batch_ids in chunk(artists_to_fetch, 50):
-            try:
-                if not bulk_artists_restricted:
-                    r = requests.get(f"{API_BASE}/artists",
-                                     headers={"Authorization": f"Bearer {token}"},
-                                     params={"ids": ",".join(batch_ids)})
-                    if r.status_code == 200:
-                        for a in r.json().get("artists") or []:
-                            if a:
-                                artist_genres[a["id"]] = a.get("genres", [])
-                        time.sleep(0.1)
-                        continue
-                    else:
-                        print(f"Bulk artists failed ({r.status_code}), falling back to individual calls")
-                        if r.status_code in [403, 404]:
-                            bulk_artists_restricted = True
+        try:
+            for batch_ids in chunk(artists_to_fetch, 50):
+                try:
+                    if not bulk_artists_restricted:
+                        r = requests.get(f"{API_BASE}/artists",
+                                         headers={"Authorization": f"Bearer {token}"},
+                                         params={"ids": ",".join(batch_ids)})
+                        if r.status_code == 200:
+                            for a in r.json().get("artists") or []:
+                                if a:
+                                    artist_genres[a["id"]] = a.get("genres", [])
+                            time.sleep(0.1)
+                            continue
+                        else:
+                            print(f"Bulk artists failed ({r.status_code}), falling back to individual calls")
+                            if r.status_code in [403, 404]:
+                                bulk_artists_restricted = True
 
-                # Fallback to individual calls
-                for aid in batch_ids:
-                    ra = requests.get(f"{API_BASE}/artists/{aid}",
-                                     headers={"Authorization": f"Bearer {token}"})
-                    if ra.status_code == 200:
-                        artist_genres[aid] = ra.json().get("genres", [])
-                    elif ra.status_code == 429:
-                        wait = int(ra.headers.get("Retry-After", 2))
-                        print(f"Rate limited during individual artist fetch, sleeping {wait}s...")
-                        time.sleep(wait)
-                        # retry once
-                        ra = requests.get(f"{API_BASE}/artists/{aid}", headers={"Authorization": f"Bearer {token}"})
+                    # Fallback to individual calls
+                    for aid in batch_ids:
+                        ra = requests.get(f"{API_BASE}/artists/{aid}",
+                                         headers={"Authorization": f"Bearer {token}"})
                         if ra.status_code == 200:
                             artist_genres[aid] = ra.json().get("genres", [])
-                    time.sleep(0.1)
-            except Exception as e:
-                print(f"Error fetching artist genres: {e}")
-            time.sleep(0.1)
+                        elif ra.status_code == 429:
+                            wait = int(ra.headers.get("Retry-After", 2))
+                            if wait > 5:
+                                print(f"Rate limited: Retry-After ({wait}s) is too long. Skipping remaining artists.")
+                                raise StopIteration("Rate limit too high")
+                            print(f"Rate limited during individual artist fetch, sleeping {wait}s...")
+                            time.sleep(wait)
+                            # retry once
+                            ra = requests.get(f"{API_BASE}/artists/{aid}", headers={"Authorization": f"Bearer {token}"})
+                            if ra.status_code == 200:
+                                artist_genres[aid] = ra.json().get("genres", [])
+                        time.sleep(0.1)
+                except StopIteration:
+                    raise
+                except Exception as e:
+                    print(f"Error fetching batch of artists: {e}")
+                time.sleep(0.1)
+        except StopIteration as si:
+            print(f"Stopping artist fetch: {si}")
+        except Exception as top_e:
+            print(f"Artist fetch loop error: {top_e}")
 
         # Update cache file
         try:
