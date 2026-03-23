@@ -42,32 +42,55 @@ MOOD_EMOJIS = {
 }
 
 # ─── MOOD LOGIC ──────────────────────────────────────────────────────────────
+GENRE_MOODS = {
+    "Hype / Party": ["dance", "edm", "party", "pop", "hip hop", "rap", "r&b", "funk", "disco", "house", "techno", "electro", "trance", "k-pop", "reggaeton"],
+    "Pump-Up / Workout": ["rock", "metal", "punk", "hardcore", "trap", "gym", "workout", "phonk", "dubstep", "grime", "breakbeat"],
+    "Dark & Intense": ["industrial", "goth", "metal", "dark", "doom", "black metal", "death metal", "techno", "ebm"],
+    "Feel-Good / Upbeat": ["indie pop", "happy", "summer", "sunny", "britpop", "j-pop", "nu-disco", "funk", "motown"],
+    "Sunny / Laid-Back": ["reggae", "surf", "tropical", "folk pop", "lo-fi", "ska", "afrobeats", "bossa nova"],
+    "Melancholic / Moody": ["indie rock", "alternative", "shoegaze", "emo", "grunge", "post-punk", "slowcore", "dream pop"],
+    "Acoustic / Soulful": ["soul", "jazz", "blues", "folk", "acoustic", "r&b", "neo soul", "bluegrass", "country"],
+    "Calm Acoustic": ["classical", "piano", "acoustic", "singer-songwriter", "chamber", "ambient acoustic", "baroque"],
+    "Energetic Instrumental": ["techno", "trance", "house", "drum and bass", "idm", "glitch", "progressive", "jazz fusion"],
+    "Ambient / Chill Instrumental": ["ambient", "chillout", "lo-fi", "downtempo", "new age", "minimal", "meditation"],
+    "Relaxed / Mellow": ["chill", "smooth", "mellow", "easy listening", "jazz", "lounge", "soft rock", "yacht rock"],
+    "Sad / Reflective": ["sad", "melancholy", "ballad", "dark folk", "ambient", "minimal", "modern classical"],
+}
+
 def assign_mood(track):
     f = track.get("audio_features", {})
-    if not f:
-        return "Cruising / Everyday"
-    e   = f.get("energy", 0.5)
-    v   = f.get("valence", 0.5)
-    d   = f.get("danceability", 0.5)
-    a   = f.get("acousticness", 0.5)
-    ins = f.get("instrumentalness", 0)
+    genres = [g.lower() for g in track.get("genres", [])]
 
-    if ins > 0.5:
-        return "Ambient / Chill Instrumental" if e < 0.4 else "Energetic Instrumental"
-    if e >= 0.75:
-        if v >= 0.6 and d >= 0.6: return "Hype / Party"
-        if v < 0.4:               return "Dark & Intense"
-        return "Pump-Up / Workout"
-    if 0.4 <= e < 0.75:
-        if v >= 0.65 and d >= 0.6: return "Feel-Good / Upbeat"
-        if v >= 0.65 and d < 0.6:  return "Sunny / Laid-Back"
-        if v < 0.35:               return "Melancholic / Moody"
-        if a >= 0.5:               return "Acoustic / Soulful"
-        return "Cruising / Everyday"
-    if e < 0.4:
-        if a >= 0.5:  return "Calm Acoustic"
-        if v < 0.35:  return "Sad / Reflective"
-        return "Relaxed / Mellow"
+    # Audio feature-based classification
+    if f:
+        e   = f.get("energy", 0.5)
+        v   = f.get("valence", 0.5)
+        d   = f.get("danceability", 0.5)
+        a   = f.get("acousticness", 0.5)
+        ins = f.get("instrumentalness", 0)
+
+        if ins > 0.5:
+            return "Ambient / Chill Instrumental" if e < 0.4 else "Energetic Instrumental"
+        if e >= 0.75:
+            if v >= 0.6 and d >= 0.6: return "Hype / Party"
+            if v < 0.4:               return "Dark & Intense"
+            return "Pump-Up / Workout"
+        if 0.4 <= e < 0.75:
+            if v >= 0.65 and d >= 0.6: return "Feel-Good / Upbeat"
+            if v >= 0.65 and d < 0.6:  return "Sunny / Laid-Back"
+            if v < 0.35:               return "Melancholic / Moody"
+            if a >= 0.5:               return "Acoustic / Soulful"
+            return "Cruising / Everyday"
+        if e < 0.4:
+            if a >= 0.5:  return "Calm Acoustic"
+            if v < 0.35:  return "Sad / Reflective"
+            return "Relaxed / Mellow"
+
+    # Fallback: Genre-based classification
+    for mood, keywords in GENRE_MOODS.items():
+        if any(kw in g for kw in keywords for g in genres):
+            return mood
+
     return "Cruising / Everyday"
 
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -176,6 +199,7 @@ def analyze():
                     "uri":    t["uri"],
                     "name":   t["name"],
                     "artist": ", ".join(a["name"] for a in t["artists"]),
+                    "artist_ids": [a["id"] for a in t["artists"]],
                     "album":  t["album"]["name"],
                     "image":  t["album"]["images"][-1]["url"] if t["album"]["images"] else "",
                 })
@@ -184,26 +208,66 @@ def analyze():
         params["offset"] += 50
         time.sleep(0.1)
 
-    # Fetch audio features in batches of 100 (using individual calls per Feb 2026)
+    # Fetch audio features in batches of 50
     track_ids = [t["uri"].split(":")[-1] for t in tracks]
     features  = {}
 
     for batch_ids in chunk(track_ids, 50):
-        # GET /audio-features still works for dev mode
-        r = requests.get(f"{API_BASE}/audio-features",
-                         headers={"Authorization": f"Bearer {token}"},
-                         params={"ids": ",".join(batch_ids)})
-        if r.status_code == 200:
-            for f in r.json().get("audio_features") or []:
-                if f:
-                    features[f["id"]] = f
+        try:
+            r = requests.get(f"{API_BASE}/audio-features",
+                             headers={"Authorization": f"Bearer {token}"},
+                             params={"ids": ",".join(batch_ids)})
+            if r.status_code == 200:
+                for f in r.json().get("audio_features") or []:
+                    if f:
+                        features[f["id"]] = f
+        except Exception as e:
+            print(f"Error fetching audio features: {e}")
         time.sleep(0.1)
+
+    # Fetch artist genres as a fallback
+    artist_ids = list(set(aid for t in tracks for aid in t.get("artist_ids", [])))
+    artist_genres = {}
+
+    if artist_ids:
+        for batch_ids in chunk(artist_ids, 50):
+            try:
+                # GET /artists still works for multiple IDs in many cases, but let's be safe
+                r = requests.get(f"{API_BASE}/artists",
+                                 headers={"Authorization": f"Bearer {token}"},
+                                 params={"ids": ",".join(batch_ids)})
+                if r.status_code == 200:
+                    for a in r.json().get("artists") or []:
+                        if a:
+                            artist_genres[a["id"]] = a.get("genres", [])
+                else:
+                    print(f"Bulk artists failed ({r.status_code}), falling back to individual calls")
+                    # Fallback to individual calls if plural endpoint is restricted
+                    for aid in batch_ids:
+                        ra = requests.get(f"{API_BASE}/artists/{aid}",
+                                         headers={"Authorization": f"Bearer {token}"})
+                        if ra.status_code == 200:
+                            artist_genres[aid] = ra.json().get("genres", [])
+                        elif ra.status_code == 429:
+                            print("Rate limited during individual artist fetch, sleeping...")
+                            time.sleep(2.0)
+                        time.sleep(0.05)
+            except Exception as e:
+                print(f"Error fetching artist genres: {e}")
+            time.sleep(0.1)
 
     # Assign moods
     mood_map = {}
     for t in tracks:
         tid  = t["uri"].split(":")[-1]
         t["audio_features"] = features.get(tid, {})
+
+        # Attach genres to track for mood assignment
+        t["genres"] = []
+        for aid in t.get("artist_ids", []):
+            t["genres"].extend(artist_genres.get(aid, []))
+        t["genres"] = list(set(t["genres"]))
+
         mood = assign_mood(t)
         t["mood"] = mood
         mood_map.setdefault(mood, []).append(t)
