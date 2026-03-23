@@ -10,6 +10,8 @@ import requests
 import os
 import time
 import urllib.parse
+import json
+import re
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -41,57 +43,121 @@ MOOD_EMOJIS = {
     "Sad / Reflective":           "💧",
 }
 
-# ─── MOOD LOGIC ──────────────────────────────────────────────────────────────
-GENRE_MOODS = {
-    "Hype / Party": ["dance", "edm", "party", "pop", "hip hop", "rap", "r&b", "funk", "disco", "house", "techno", "electro", "trance", "k-pop", "reggaeton"],
-    "Pump-Up / Workout": ["rock", "metal", "punk", "hardcore", "trap", "gym", "workout", "phonk", "dubstep", "grime", "breakbeat"],
-    "Dark & Intense": ["industrial", "goth", "metal", "dark", "doom", "black metal", "death metal", "techno", "ebm"],
-    "Feel-Good / Upbeat": ["indie pop", "happy", "summer", "sunny", "britpop", "j-pop", "nu-disco", "funk", "motown"],
-    "Sunny / Laid-Back": ["reggae", "surf", "tropical", "folk pop", "lo-fi", "ska", "afrobeats", "bossa nova"],
-    "Melancholic / Moody": ["indie rock", "alternative", "shoegaze", "emo", "grunge", "post-punk", "slowcore", "dream pop"],
-    "Acoustic / Soulful": ["soul", "jazz", "blues", "folk", "acoustic", "r&b", "neo soul", "bluegrass", "country"],
-    "Calm Acoustic": ["classical", "piano", "acoustic", "singer-songwriter", "chamber", "ambient acoustic", "baroque"],
-    "Energetic Instrumental": ["techno", "trance", "house", "drum and bass", "idm", "glitch", "progressive", "jazz fusion"],
-    "Ambient / Chill Instrumental": ["ambient", "chillout", "lo-fi", "downtempo", "new age", "minimal", "meditation"],
-    "Relaxed / Mellow": ["chill", "smooth", "mellow", "easy listening", "jazz", "lounge", "soft rock", "yacht rock"],
-    "Sad / Reflective": ["sad", "melancholy", "ballad", "dark folk", "ambient", "minimal", "modern classical"],
+# ─── CLASSIFICATION SYSTEM 2.0 ──────────────────────────────────────────────
+
+GENRE_SCORING = {
+    # ENERGY (0-4), TONE, CONTEXT, SONIC_TAGS
+    "ambient":        (0, "NEUTRAL",  "SLEEP",     ["INSTRUMENTAL", "LO_FI"]),
+    "lo-fi":          (1, "NEUTRAL",  "FOCUS",     ["LO_FI", "INSTRUMENTAL"]),
+    "classical":      (1, "TENDER",   "FOCUS",     ["ORCHESTRAL", "ACOUSTIC"]),
+    "jazz":           (2, "NEUTRAL",  "SOCIAL",    ["LIVE_FEEL", "ACOUSTIC"]),
+    "folk":           (2, "TENDER",   "NOSTALGIA", ["ACOUSTIC", "VOCAL_HEAVY"]),
+    "singer-songwriter": (2, "SAD",      "HEARTBREAK",["ACOUSTIC", "VOCAL_HEAVY"]),
+    "pop":            (3, "JOYFUL",   "SOCIAL",    ["PRODUCED"]),
+    "indie rock":     (3, "NEUTRAL",  "DRIVING",   ["LIVE_FEEL", "RAW"]),
+    "alternative":     (3, "DARK",     "LATE_NIGHT",["RAW"]),
+    "dance pop":      (4, "EUPHORIC", "SOCIAL",    ["ELECTRONIC", "PRODUCED"]),
+    "edm":            (4, "EUPHORIC", "WORKOUT",   ["ELECTRONIC"]),
+    "techno":         (4, "DARK",     "LATE_NIGHT",["ELECTRONIC", "INSTRUMENTAL"]),
+    "metal":          (4, "DARK",     "WORKOUT",   ["RAW", "LIVE_FEEL"]),
+    "punk":           (4, "DARK",     "WORKOUT",   ["RAW"]),
+    "rap":            (3, "DARK",     "WORKOUT",   ["VOCAL_HEAVY", "PRODUCED"]),
+    "r&b":            (2, "TENDER",   "LATE_NIGHT",["VOCAL_HEAVY", "PRODUCED"]),
+    "soul":           (2, "JOYFUL",   "NOSTALGIA", ["VOCAL_HEAVY", "ACOUSTIC"]),
+    "reggae":         (2, "JOYFUL",   "ADVENTURE", ["LIVE_FEEL"]),
 }
 
-def assign_mood(track):
-    f = track.get("audio_features", {})
+NLP_SIGNALS = {
+    "DARK":       ["night", "dark", "death", "blood", "void", "shadow", "kill", "devil", "hell", "burn", "evil"],
+    "SAD":        ["cry", "tears", "goodbye", "alone", "broken", "miss", "hurt", "lost", "empty", "never", "blue"],
+    "JOYFUL":     ["sunshine", "happy", "good time", "party", "dance", "celebrate", "love", "summer", "free", "bright"],
+    "TENDER":     ["hold", "close", "soft", "dream", "gentle", "together", "home", "heart", "warm", "baby"],
+    "EUPHORIC":   ["sky", "star", "light", "higher", "fly", "heaven", "magic", "rising", "fireworks"],
+    "LATE_NIGHT": ["midnight", "3am", "late", "insomnia", "moonlight", "after dark"],
+    "WORKOUT":    ["power", "beast", "fire", "run", "grind", "hustle", "stronger", "energy", "fast"],
+}
+
+ARTIST_OVERRIDES = {
+    "Radiohead": {"tone": "DARK", "context": "LATE_NIGHT"},
+    "Lana Del Rey": {"tone": "SAD", "context": "NOSTALGIA"},
+    "Metallica": {"energy": 4, "context": "WORKOUT"},
+    "Enya": {"energy": 0, "context": "SLEEP"},
+}
+
+def score_track(track):
+    """Moodify 2.0 Multi-dimensional Scoring Engine"""
+    name   = track.get("name", "").lower()
+    album  = track.get("album", "").lower()
     genres = [g.lower() for g in track.get("genres", [])]
+    artist = track.get("artist", "").split(",")[0].strip()
+    year   = track.get("release_year", 2020)
 
-    # Audio feature-based classification
-    if f:
-        e   = f.get("energy", 0.5)
-        v   = f.get("valence", 0.5)
-        d   = f.get("danceability", 0.5)
-        a   = f.get("acousticness", 0.5)
-        ins = f.get("instrumentalness", 0)
+    # Era Dimension
+    if year < 1980:   era = "PRE_80s"
+    elif year < 1990: era = "80s"
+    elif year < 2000: era = "90s"
+    elif year < 2010: era = "00s"
+    elif year < 2020: era = "10s"
+    else:             era = "20s"
 
-        if ins > 0.5:
-            return "Ambient / Chill Instrumental" if e < 0.4 else "Energetic Instrumental"
-        if e >= 0.75:
-            if v >= 0.6 and d >= 0.6: return "Hype / Party"
-            if v < 0.4:               return "Dark & Intense"
-            return "Pump-Up / Workout"
-        if 0.4 <= e < 0.75:
-            if v >= 0.65 and d >= 0.6: return "Feel-Good / Upbeat"
-            if v >= 0.65 and d < 0.6:  return "Sunny / Laid-Back"
-            if v < 0.35:               return "Melancholic / Moody"
-            if a >= 0.5:               return "Acoustic / Soulful"
-            return "Cruising / Everyday"
-        if e < 0.4:
-            if a >= 0.5:  return "Calm Acoustic"
-            if v < 0.35:  return "Sad / Reflective"
-            return "Relaxed / Mellow"
+    # Profile initialization
+    profile = {
+        "energy":  [2], # Default moderate
+        "tone":    {"DARK":0, "SAD":0, "NEUTRAL":1, "TENDER":0, "HOPEFUL":0, "JOYFUL":0, "EUPHORIC":0},
+        "context": {"FOCUS":0, "DRIVING":1, "WORKOUT":0, "SOCIAL":0, "SLEEP":0, "HEARTBREAK":0, "NOSTALGIA":0, "ADVENTURE":0, "LATE_NIGHT":0},
+        "sonic":   []
+    }
 
-    # Fallback: Genre-based classification
-    for mood, keywords in GENRE_MOODS.items():
-        if any(kw in g for kw in keywords for g in genres):
-            return mood
+    # 1. Artist Genres (40%)
+    for g in genres:
+        for kw, (en, to, co, so) in GENRE_SCORING.items():
+            if kw in g:
+                profile["energy"].append(en)
+                profile["tone"][to] += 4
+                profile["context"][co] += 4
+                profile["sonic"].extend(so)
 
-    return "Cruising / Everyday"
+    # 2. Track/Album NLP (30%)
+    meta_str = f"{name} {album}"
+    for tone, keywords in NLP_SIGNALS.items():
+        for kw in keywords:
+            if re.search(r'\b' + re.escape(kw) + r'\b', meta_str):
+                if tone in profile["tone"]: profile["tone"][tone] += 3
+                if tone in profile["context"]: profile["context"][tone] += 3
+                if tone == "WORKOUT": profile["energy"].append(4)
+
+    # 3. Artist Overrides (10%)
+    if artist in ARTIST_OVERRIDES:
+        ov = ARTIST_OVERRIDES[artist]
+        if "energy" in ov: profile["energy"].append(ov["energy"])
+        if "tone" in ov: profile["tone"][ov["tone"]] += 5
+        if "context" in ov: profile["context"][ov["context"]] += 5
+
+    # 4. Release Year (20%)
+    if era in ["PRE_80s", "80s", "90s"]:
+        profile["context"]["NOSTALGIA"] += 2
+
+    # Final Resolution
+    # Energy: Weighted avg, prioritize high
+    if any(e >= 4 for e in profile["energy"]): energy = 4
+    elif any(e >= 3 for e in profile["energy"]): energy = 3
+    else: energy = int(sum(profile["energy"]) / len(profile["energy"]))
+
+    # Max score resolution
+    tone = max(profile["tone"], key=profile["tone"].get)
+    context = max(profile["context"], key=profile["context"].get)
+
+    # Sonic tags (top unique)
+    sonic = sorted(list(set(profile["sonic"])), key=lambda x: profile["sonic"].count(x), reverse=True)[:2]
+    if not sonic: sonic = ["PRODUCED"]
+
+    return {
+        "energy":  energy,
+        "tone":    tone,
+        "context": context,
+        "sonic":   sonic,
+        "era":     era
+    }
 
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
 def api_get(path, token, params=None):
@@ -131,8 +197,21 @@ def chunk(lst, size):
 # ─── ROUTES ──────────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
+    user_info = None
+    if "access_token" in session:
+        try:
+            user = api_get("/me", session["access_token"])
+            images = user.get("images", [])
+            image_url = images[0].get("url", "") if images else ""
+            user_info = {
+                "name": user.get("display_name", user["id"]),
+                "image": image_url
+            }
+        except: pass
+
     return render_template("index.html",
                            logged_in="access_token" in session,
+                           user_info=user_info,
                            client_id=CLIENT_ID)
 
 @app.route("/login")
@@ -171,119 +250,164 @@ def me():
     if not refresh_token_if_needed():
         return jsonify({"error": "not logged in"}), 401
     user = api_get("/me", session["access_token"])
+    images = user.get("images", [])
+    image_url = images[0].get("url", "") if images else ""
     return jsonify({"name": user.get("display_name", user["id"]),
                     "id":   user["id"],
-                    "image": user.get("images", [{}])[0].get("url", "")})
+                    "image": image_url})
+
+# ─── PLAYLIST RECIPES ────────────────────────────────────────────────────────
+
+PLAYLIST_RECIPES = [
+    {"id": "3am_drive",      "name": "3am Drive",          "emoji": "🌃", "desc": "Nocturnal · Moody", "req": {"context": "LATE_NIGHT", "energy": [1,2,3], "tone": ["DARK", "NEUTRAL", "SAD"]}},
+    {"id": "gym_beast",      "name": "Gym Beast Mode",     "emoji": "🔥", "desc": "Intense · Driven", "req": {"context": "WORKOUT",    "energy": [3,4],   "tone": ["DARK", "EUPHORIC", "JOYFUL"]}},
+    {"id": "sunday_morning", "name": "Sunday Morning",      "emoji": "☕", "desc": "Warm · Gentle", "req": {"energy": [0,1,2],       "tone": ["TENDER", "HOPEFUL"], "sonic": ["ACOUSTIC"]}},
+    {"id": "broken_heart",   "name": "Broken Heart at 2am","emoji": "💔", "desc": "Raw · Emotional", "req": {"context": "HEARTBREAK", "tone": ["SAD", "DARK"]}},
+    {"id": "pre_game",       "name": "Pre-Game Hype",      "emoji": "🥂", "desc": "Euphoric · Anthemic", "req": {"context": "SOCIAL",     "energy": [3,4], "tone": ["EUPHORIC", "JOYFUL"]}},
+    {"id": "deep_focus",     "name": "Deep Focus",         "emoji": "🧠", "desc": "Calm · Productive", "req": {"context": "FOCUS",      "energy": [0,1,2]}},
+    {"id": "road_trip",      "name": "Road Trip Anthems",  "emoji": "🚗", "desc": "Steady · Rhythmic", "req": {"context": "ADVENTURE",  "energy": [2,3,4]}},
+    {"id": "rainy_day",      "name": "Rainy Day Indie",    "emoji": "🌧️", "desc": "Storytelling · Moody", "req": {"energy": [1,2,3],       "tone": ["SAD", "NEUTRAL"]}},
+    {"id": "club_ready",     "name": "Club Ready",         "emoji": "💃", "desc": "Electronic · Peak", "req": {"context": "SOCIAL",     "energy": [4],   "tone": ["EUPHORIC", "DARK"]}},
+    {"id": "nostalgia_90s",  "name": "90s Nostalgia",      "emoji": "📼", "desc": "Timeless · Classic", "req": {"era": ["90s"]}},
+    {"id": "nostalgia_80s",  "name": "80s Nostalgia",      "emoji": "🕹️", "desc": "Retro · Vintage", "req": {"era": ["80s"]}},
+    {"id": "nostalgia_00s",  "name": "00s Nostalgia",      "emoji": "🎧", "desc": "Millennial · Anthems", "req": {"era": ["00s"]}},
+    {"id": "chill_vibes",    "name": "Mellow Gold",        "emoji": "🌙", "desc": "Smooth · Balanced", "req": {"energy": [1,2],       "tone": ["NEUTRAL", "TENDER"]}},
+    {"id": "high_energy",    "name": "Electric Pulse",     "emoji": "⚡", "desc": "High Energy · Pulse", "req": {"energy": [4],         "sonic": ["ELECTRONIC", "PRODUCED"]}},
+]
 
 @app.route("/api/analyze")
 def analyze():
-    """Fetch all liked songs + audio features, return mood breakdown."""
     if not refresh_token_if_needed():
         return jsonify({"error": "not logged in"}), 401
 
-    token  = session["access_token"]
+    token = session["access_token"]
     tracks = []
-
-    # Paginate through all liked songs
-    url    = "/me/tracks"
-    params = {"limit": 50, "offset": 0}
-    while True:
-        data  = api_get(url, token, params)
-        items = data.get("items", [])
-        if not items:
-            break
-        for item in items:
-            t = item["track"]
-            if t:
-                tracks.append({
-                    "uri":    t["uri"],
-                    "name":   t["name"],
-                    "artist": ", ".join(a["name"] for a in t["artists"]),
-                    "artist_ids": [a["id"] for a in t["artists"]],
-                    "album":  t["album"]["name"],
-                    "image":  t["album"]["images"][-1]["url"] if t["album"]["images"] else "",
-                })
-        if data.get("next") is None:
-            break
-        params["offset"] += 50
-        time.sleep(0.1)
-
-    # Fetch audio features in batches of 50
-    track_ids = [t["uri"].split(":")[-1] for t in tracks]
-    features  = {}
-
-    for batch_ids in chunk(track_ids, 50):
-        try:
-            r = requests.get(f"{API_BASE}/audio-features",
-                             headers={"Authorization": f"Bearer {token}"},
-                             params={"ids": ",".join(batch_ids)})
-            if r.status_code == 200:
-                for f in r.json().get("audio_features") or []:
-                    if f:
-                        features[f["id"]] = f
-        except Exception as e:
-            print(f"Error fetching audio features: {e}")
-        time.sleep(0.1)
-
-    # Fetch artist genres as a fallback
-    artist_ids = list(set(aid for t in tracks for aid in t.get("artist_ids", [])))
     artist_genres = {}
 
-    if artist_ids:
-        for batch_ids in chunk(artist_ids, 50):
+    # 0. Bootstrap genres from top artists (1 call, 50 artists)
+    try:
+        top_artists = api_get("/me/top/artists", token, {"limit": 50})
+        for a in top_artists.get("items", []):
+            artist_genres[a["id"]] = a.get("genres", [])
+    except: pass
+
+    # 1. Fetch Liked Songs
+    url = "/me/tracks"
+    params = {"limit": 50, "offset": 0}
+    while True:
+        data = api_get(url, token, params)
+        for item in data.get("items", []):
+            t = item["track"]
+            if not t: continue
+            tracks.append({
+                "uri":    t["uri"],
+                "name":   t["name"],
+                "artist": ", ".join(a["name"] for a in t["artists"]),
+                "artist_ids": [a["id"] for a in t["artists"]],
+                "album":  t["album"]["name"],
+                "image":  t["album"]["images"][0]["url"] if t.get("album", {}).get("images") else "",
+                "release_year": int(t["album"]["release_date"].split("-")[0]) if t.get("album", {}).get("release_date") else 2020
+            })
+        if not data.get("next"): break
+        params["offset"] += 50
+        time.sleep(0.05)
+
+    # 2. Fetch Artist Metadata (Genres) with Cache
+    cache_file = "artist_cache.json"
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, "r") as f:
+                cached = json.load(f)
+                artist_genres.update(cached)
+        except: pass
+
+    all_artist_ids = list(set(aid for t in tracks for aid in t["artist_ids"]))
+    to_fetch = [aid for aid in all_artist_ids if aid not in artist_genres]
+
+    if to_fetch:
+        for batch in chunk(to_fetch, 50):
             try:
-                # GET /artists still works for multiple IDs in many cases, but let's be safe
-                r = requests.get(f"{API_BASE}/artists",
-                                 headers={"Authorization": f"Bearer {token}"},
-                                 params={"ids": ",".join(batch_ids)})
+                r = requests.get(f"{API_BASE}/artists", headers={"Authorization": f"Bearer {token}"}, params={"ids": ",".join(batch)})
                 if r.status_code == 200:
-                    for a in r.json().get("artists") or []:
-                        if a:
-                            artist_genres[a["id"]] = a.get("genres", [])
-                else:
-                    print(f"Bulk artists failed ({r.status_code}), falling back to individual calls")
-                    # Fallback to individual calls if plural endpoint is restricted
-                    for aid in batch_ids:
-                        ra = requests.get(f"{API_BASE}/artists/{aid}",
-                                         headers={"Authorization": f"Bearer {token}"})
-                        if ra.status_code == 200:
-                            artist_genres[aid] = ra.json().get("genres", [])
-                        elif ra.status_code == 429:
-                            print("Rate limited during individual artist fetch, sleeping...")
-                            time.sleep(2.0)
-                        time.sleep(0.05)
-            except Exception as e:
-                print(f"Error fetching artist genres: {e}")
+                    for a in r.json().get("artists", []):
+                        if a: artist_genres[a["id"]] = a.get("genres", [])
+                elif r.status_code == 429:
+                    wait = int(r.headers.get("Retry-After", 5))
+                    time.sleep(wait)
+            except: pass
             time.sleep(0.1)
 
-    # Assign moods
-    mood_map = {}
-    for t in tracks:
-        tid  = t["uri"].split(":")[-1]
-        t["audio_features"] = features.get(tid, {})
+        with open(cache_file, "w") as f:
+            json.dump(artist_genres, f)
 
-        # Attach genres to track for mood assignment
+    # 3. Classify Tracks
+    classified_tracks = []
+    total_tracks = len(tracks)
+    for i, t in enumerate(tracks):
         t["genres"] = []
-        for aid in t.get("artist_ids", []):
+        for aid in t["artist_ids"]:
             t["genres"].extend(artist_genres.get(aid, []))
         t["genres"] = list(set(t["genres"]))
 
-        mood = assign_mood(t)
-        t["mood"] = mood
-        mood_map.setdefault(mood, []).append(t)
+        t["profile"] = score_track(t)
+        classified_tracks.append(t)
 
-    # Build summary
-    summary = []
-    for mood, songs in sorted(mood_map.items(), key=lambda x: -len(x[1])):
-        summary.append({
-            "mood":    mood,
-            "emoji":   MOOD_EMOJIS.get(mood, "🎵"),
-            "count":   len(songs),
-            "songs":   songs[:5],   # preview only
-            "all_uris": [s["uri"] for s in songs],
+    # 4. Generate Playlists from Recipes
+    generated_playlists = []
+    for recipe in PLAYLIST_RECIPES:
+        match_uris = []
+        match_arts = []
+        match_artists = []
+
+        for t in classified_tracks:
+            p = t["profile"]
+            req = recipe["req"]
+
+            is_match = True
+            if "context" in req and p["context"] != req["context"]: is_match = False
+            if "energy" in req and p["energy"] not in req["energy"]: is_match = False
+            if "tone" in req and p["tone"] not in req["tone"]: is_match = False
+            if "era" in req and p["era"] not in req["era"]: is_match = False
+            if "sonic" in req and not any(s in p["sonic"] for s in req["sonic"]): is_match = False
+
+            if is_match:
+                match_uris.append(t["uri"])
+                if t["image"] and len(match_arts) < 4: match_arts.append(t["image"])
+                if len(match_artists) < 10: match_artists.append(t.get("artist", "").split(",")[0])
+
+        if len(match_uris) >= 10:
+            # Handle Volumes (split every 60 tracks)
+            vols = list(chunk(match_uris, 60))
+            for i, vol_uris in enumerate(vols):
+                name = recipe["name"]
+                if len(vols) > 1: name += f" Vol. {i+1}"
+
+                generated_playlists.append({
+                    "id": f"{recipe['id']}_{i}",
+                    "name": name,
+                    "emoji": recipe["emoji"],
+                    "desc": recipe.get("desc", ""),
+                    "track_count": len(vol_uris),
+                    "top_artists": sorted(list(set(match_artists)), key=lambda x: match_artists.count(x), reverse=True)[:3],
+                    "album_arts": match_arts,
+                    "energy_level": recipe["req"].get("energy", [2])[0],
+                    "tone": recipe["req"].get("tone", ["NEUTRAL"])[0],
+                    "uris": vol_uris
+                })
+
+    # Group tracks for UI console reasoning feed
+    track_details = []
+    for t in classified_tracks[:50]: # limit to 50 for performance
+        track_details.append({
+            "name": t["name"],
+            "profile": t["profile"]
         })
 
-    return jsonify({"total": len(tracks), "moods": summary})
+    return jsonify({
+        "total": len(tracks),
+        "playlists": generated_playlists,
+        "debug_feed": track_details
+    })
 
 @app.route("/api/create_playlists", methods=["POST"])
 def create_playlists():
@@ -291,30 +415,26 @@ def create_playlists():
         return jsonify({"error": "not logged in"}), 401
 
     token    = session["access_token"]
-    body     = request.json  # list of {mood, name, selected, uris}
+    body     = request.json  # list of {id, name, uris, ...}
     created  = []
 
     for entry in body:
-        if not entry.get("selected"):
-            continue
-        mood  = entry["mood"]
         name  = entry["name"]
         uris  = entry.get("uris", [])
-        if not uris:
-            continue
+        if not uris: continue
 
-        # Create playlist using POST /me/playlists (Feb 2026 endpoint)
+        # Create playlist using POST /me/playlists
         pl = api_post("/me/playlists", token, {
             "name":        name,
             "public":      False,
-            "description": f"Created by Moodify · {mood}"
+            "description": f"Curated by Moodify · Intelligent sorting"
         })
         pl_id = pl["id"]
 
         # Add tracks in batches of 100
         for batch in chunk(uris, 100):
             api_post(f"/playlists/{pl_id}/items", token, {"uris": batch})
-            time.sleep(0.2)
+            time.sleep(0.1)
 
         created.append({"name": name, "count": len(uris), "id": pl_id})
 

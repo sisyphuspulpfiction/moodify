@@ -3,23 +3,29 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Moodify</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<title>Moodify 2.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg:       #0a0a0f;
-    --surface:  #111118;
-    --card:     #16161f;
-    --border:   #ffffff0f;
-    --accent:   #1DB954;
-    --accent2:  #1ed760;
-    --text:     #e8e8f0;
-    --muted:    #666680;
-    --danger:   #ff4d6d;
+    --bg: #050505;
+    --surface: #0f0f0f;
+    --card: #181818;
+    --accent: #1DB954;
+    --accent-glow: rgba(29, 185, 84, 0.3);
+    --text: #ffffff;
+    --muted: #a7a7a7;
+    --border: #282828;
+
+    --tone-dark: #7c3aed;
+    --tone-sad: #3b82f6;
+    --tone-neutral: #6b7280;
+    --tone-tender: #ec4899;
+    --tone-hopeful: #10b981;
+    --tone-joyful: #f59e0b;
+    --tone-euphoric: #ef4444;
   }
 
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
+  * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'DM Sans', sans-serif;
     background: var(--bg);
@@ -28,580 +34,331 @@
     overflow-x: hidden;
   }
 
-  /* ── NOISE TEXTURE ── */
-  body::before {
-    content: '';
-    position: fixed; inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-    pointer-events: none; z-index: 0; opacity: .4;
+  /* ── PAGES ── */
+  .page { display: none; min-height: 100vh; width: 100%; position: relative; }
+  .page.active { display: flex; flex-direction: column; }
+
+  /* ── LOGIN PAGE ── */
+  #page-login {
+    background: radial-gradient(circle at top left, #121212 0%, #050505 100%);
+    justify-content: center; align-items: center; text-align: center;
+  }
+  .hero-content h1 {
+    font-family: 'Syne', sans-serif; font-size: clamp(48px, 10vw, 96px);
+    line-height: 0.9; margin-bottom: 24px; letter-spacing: -3px;
+  }
+  .hero-content p { color: var(--muted); font-size: 20px; margin-bottom: 48px; max-width: 500px; }
+
+  /* ── ANALYZING PAGE ── */
+  #page-analyze { justify-content: center; align-items: center; }
+  .analyze-box { width: 100%; max-width: 600px; padding: 0 40px; }
+  .progress-container {
+    height: 6px; background: var(--border); border-radius: 10px; margin-bottom: 24px; overflow: hidden;
+  }
+  .progress-bar { height: 100%; width: 0%; background: var(--accent); transition: width 0.3s ease; box-shadow: 0 0 20px var(--accent-glow); }
+  .analyze-status { font-family: 'Syne', sans-serif; font-size: 24px; margin-bottom: 8px; }
+  .analyze-count { color: var(--muted); margin-bottom: 32px; }
+
+  .live-feed {
+    height: 300px; overflow: hidden; background: #000; border-radius: 12px;
+    padding: 20px; border: 1px solid var(--border);
+    display: flex; flex-direction: column-reverse; gap: 8px; font-size: 12px;
+    font-family: 'Monaco', 'Consolas', monospace;
+  }
+  .feed-item { animation: slideIn 0.3s ease-out; display: flex; justify-content: space-between; color: var(--muted); }
+  .feed-item strong { color: var(--accent); }
+
+  /* ── DASHBOARD PAGE ── */
+  #page-dashboard { padding: 40px 24px 120px; max-width: 1200px; margin: 0 auto; }
+  .dashboard-header { margin-bottom: 48px; }
+  .dashboard-header h2 { font-family: 'Syne', sans-serif; font-size: 40px; margin-bottom: 8px; }
+  .dashboard-header p { color: var(--muted); }
+
+  .playlist-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px;
+  }
+  .playlist-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px; transition: all 0.2s; cursor: pointer; position: relative;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .playlist-card:hover { transform: translateY(-4px); border-color: #444; background: #222; }
+  .playlist-card.selected { border-color: var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+
+  .art-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;
+    width: 100%; aspect-ratio: 1; border-radius: 8px; overflow: hidden;
+  }
+  .art-grid img { width: 100%; height: 100%; object-fit: cover; background: #222; }
+
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .card-emoji { font-size: 32px; }
+  .card-count { color: var(--muted); font-size: 14px; font-weight: 500; }
+
+  .card-info h3 { font-size: 22px; margin-bottom: 4px; font-family: 'Syne', sans-serif; }
+  .card-desc { color: var(--accent); font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 1px; }
+  .card-artists { color: var(--muted); font-size: 12px; line-height: 1.4; }
+
+  .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); }
+
+  .energy-dots { display: flex; gap: 4px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #333; }
+  .dot.filled { background: var(--accent); box-shadow: 0 0 8px var(--accent-glow); }
+
+  .tone-badge {
+    padding: 4px 10px; border-radius: 100px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
   }
 
-  /* ── GLOW ORBS ── */
-  .orb {
-    position: fixed; border-radius: 50%;
-    filter: blur(120px); pointer-events: none; z-index: 0;
-  }
-  .orb1 { width: 600px; height: 600px; background: #1DB95420; top: -200px; left: -100px; }
-  .orb2 { width: 400px; height: 400px; background: #7c3aed15; bottom: 0; right: -100px; }
-
-  /* ── LAYOUT ── */
-  .wrap { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 0 24px 80px; }
-
-  /* ── HEADER ── */
-  header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 32px 0 48px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 56px;
-  }
-  .logo { display: flex; align-items: center; gap: 12px; }
-  .logo-icon {
-    width: 40px; height: 40px; border-radius: 10px;
-    background: var(--accent);
-    display: grid; place-items: center;
-    font-size: 20px;
-  }
-  .logo-text { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
-  .logo-text span { color: var(--accent); }
-
-  .user-pill {
-    display: flex; align-items: center; gap: 10px;
-    background: var(--card); border: 1px solid var(--border);
-    padding: 8px 14px 8px 8px; border-radius: 100px;
-    font-size: 13px; color: var(--muted);
-  }
-  .user-pill img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: var(--surface); }
-  .user-pill strong { color: var(--text); font-weight: 500; }
-
-  /* ── BUTTONS ── */
-  .btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 12px 24px; border-radius: 100px; border: none;
-    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500;
-    cursor: pointer; transition: all .2s; text-decoration: none;
-  }
-  .btn-primary { background: var(--accent); color: #000; }
-  .btn-primary:hover { background: var(--accent2); transform: translateY(-1px); box-shadow: 0 8px 30px #1DB95440; }
-  .btn-secondary {
-    background: transparent; color: var(--text);
-    border: 1px solid var(--border);
-  }
-  .btn-secondary:hover { border-color: #ffffff30; background: var(--card); }
-  .btn-danger { background: #ff4d6d20; color: var(--danger); border: 1px solid #ff4d6d30; }
-  .btn-danger:hover { background: #ff4d6d30; }
-  .btn:disabled { opacity: .4; cursor: not-allowed; transform: none !important; }
-  .btn-lg { padding: 16px 36px; font-size: 16px; }
-
-  /* ── HERO ── */
-  #hero { text-align: center; padding: 40px 0 60px; }
-  #hero h1 {
-    font-family: 'Syne', sans-serif; font-size: clamp(42px, 7vw, 72px);
-    font-weight: 800; line-height: 1.05; letter-spacing: -2px;
-    margin-bottom: 20px;
-  }
-  #hero h1 em { color: var(--accent); font-style: normal; }
-  #hero p { color: var(--muted); font-size: 17px; max-width: 480px; margin: 0 auto 36px; line-height: 1.6; }
-  .hero-badges { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 40px; }
-  .badge {
-    padding: 6px 14px; border-radius: 100px; font-size: 12px;
-    background: var(--card); border: 1px solid var(--border); color: var(--muted);
-  }
-  .badge span { color: var(--text); }
-
-  /* ── STEPS ── */
-  #step-analyze, #step-results, #step-done { display: none; }
-
-  /* ── LOADING ── */
-  #loading {
-    display: none; text-align: center; padding: 60px 0;
-  }
-  .spinner {
-    width: 48px; height: 48px; border-radius: 50%;
-    border: 3px solid var(--border);
-    border-top-color: var(--accent);
-    animation: spin .8s linear infinite;
-    margin: 0 auto 20px;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  #loading p { color: var(--muted); font-size: 15px; }
-  #loading strong { color: var(--text); display: block; font-size: 18px; margin-bottom: 6px; }
-
-  /* ── STATS BAR ── */
-  .stats-row {
-    display: grid; grid-template-columns: repeat(3, 1fr);
-    gap: 16px; margin-bottom: 40px;
-  }
-  .stat-card {
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: 16px; padding: 20px 24px;
-    animation: fadeUp .4s ease both;
-  }
-  .stat-card .val {
-    font-family: 'Syne', sans-serif; font-size: 36px;
-    font-weight: 800; color: var(--accent); line-height: 1;
-    margin-bottom: 4px;
-  }
-  .stat-card .lbl { color: var(--muted); font-size: 13px; }
-
-  /* ── MOOD GRID ── */
-  .section-title {
-    font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700;
-    letter-spacing: 2px; text-transform: uppercase; color: var(--muted);
-    margin-bottom: 16px;
-  }
-
-  #mood-grid { display: flex; flex-direction: column; gap: 12px; margin-bottom: 40px; }
-
-  .mood-card {
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: 16px; overflow: hidden;
-    transition: border-color .2s;
-    animation: fadeUp .4s ease both;
-  }
-  .mood-card.selected { border-color: var(--accent); }
-  .mood-card:hover { border-color: #ffffff20; }
-
-  .mood-header {
-    display: flex; align-items: center; gap: 14px;
-    padding: 16px 20px; cursor: pointer; user-select: none;
-  }
-  .mood-check {
-    width: 22px; height: 22px; border-radius: 6px;
-    border: 2px solid var(--border); flex-shrink: 0;
-    display: grid; place-items: center;
-    transition: all .15s;
-  }
-  .mood-card.selected .mood-check { background: var(--accent); border-color: var(--accent); }
-  .mood-check svg { display: none; }
-  .mood-card.selected .mood-check svg { display: block; }
-
-  .mood-emoji { font-size: 22px; }
-  .mood-info { flex: 1; }
-  .mood-name { font-weight: 500; font-size: 15px; margin-bottom: 2px; }
-  .mood-count { font-size: 12px; color: var(--muted); }
-
-  .mood-bar-wrap { flex: 1; max-width: 200px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
-  .mood-bar { height: 100%; background: var(--accent); border-radius: 2px; transition: width .6s ease; }
-
-  .mood-name-input {
-    flex: 0 0 220px; padding: 8px 14px; border-radius: 8px;
-    background: var(--surface); border: 1px solid var(--border);
-    color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px;
-    transition: border-color .2s;
-  }
-  .mood-name-input:focus { outline: none; border-color: var(--accent); }
-
-  /* Song preview */
-  .mood-songs { padding: 0 20px 16px 56px; display: none; }
-  .mood-card.expanded .mood-songs { display: block; }
-  .song-list { display: flex; flex-direction: column; gap: 6px; }
-  .song-item {
-    display: flex; align-items: center; gap: 10px;
-    font-size: 13px; color: var(--muted);
-  }
-  .song-item img { width: 32px; height: 32px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
-  .song-item .s-name { color: var(--text); }
-  .song-item .s-artist { font-size: 12px; }
-  .expand-btn {
-    margin-left: auto; font-size: 12px; color: var(--muted);
-    cursor: pointer; padding: 4px 0;
-    transition: color .15s;
-  }
-  .expand-btn:hover { color: var(--text); }
-
-  .expand-btn-toggle svg { transition: transform 0.3s; }
-  .mood-card.expanded .expand-btn-toggle svg { transform: rotate(180deg); }
-
-  /* ── CHART ── */
-  #chart-section { margin-bottom: 40px; }
-  .chart-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; }
-  canvas#moodChart { max-height: 220px; }
-
-  /* ── ACTION BAR ── */
   .action-bar {
-    position: sticky; bottom: 24px;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 16px; padding: 16px 20px;
-    display: flex; align-items: center; justify-content: space-between;
-    backdrop-filter: blur(20px);
-    box-shadow: 0 20px 60px #00000080;
-  }
-  .action-info { font-size: 14px; color: var(--muted); }
-  .action-info strong { color: var(--text); }
-
-  /* ── DONE ── */
-  #step-done { text-align: center; padding: 60px 0; }
-  #step-done h2 { font-family: 'Syne', sans-serif; font-size: 36px; font-weight: 800; margin-bottom: 12px; }
-  #step-done p { color: var(--muted); margin-bottom: 32px; }
-  .created-list { display: flex; flex-direction: column; gap: 10px; max-width: 400px; margin: 0 auto 36px; }
-  .created-item {
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: 12px; padding: 14px 18px;
-    display: flex; justify-content: space-between; align-items: center;
-    font-size: 14px;
-  }
-  .created-item a { color: var(--accent); font-size: 12px; text-decoration: none; }
-  .created-item a:hover { text-decoration: underline; }
-
-  /* ── ANIM ── */
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(16px); }
-    to   { opacity: 1; transform: translateY(0); }
+    position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+    background: rgba(24, 24, 24, 0.8); backdrop-filter: blur(20px);
+    border: 1px solid var(--border); padding: 16px 32px; border-radius: 100px;
+    display: flex; gap: 24px; align-items: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    z-index: 100;
   }
 
-  /* ── TOAST ── */
-  #toast {
-    position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
-    background: var(--card); border: 1px solid var(--border);
-    padding: 12px 20px; border-radius: 10px; font-size: 14px;
-    z-index: 999; display: none; white-space: nowrap;
+  /* ── SUCCESS PAGE ── */
+  #page-success { justify-content: center; align-items: center; text-align: center; }
+  .success-box svg { color: var(--accent); margin-bottom: 32px; }
+  .success-list { margin: 40px 0; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+  .success-item { background: var(--surface); padding: 12px 24px; border-radius: 12px; border: 1px solid var(--border); display: flex; gap: 16px; align-items: center; text-decoration: none; color: white; transition: 0.2s; }
+  .success-item:hover { transform: scale(1.05); border-color: var(--accent); }
+
+  /* ── UTILS ── */
+  .btn {
+    padding: 16px 32px; border-radius: 100px; border: none; font-family: inherit;
+    font-weight: 700; cursor: pointer; text-decoration: none; transition: 0.2s;
+    font-size: 16px; display: inline-flex; align-items: center; gap: 12px;
   }
+  .btn-spotify { background: var(--accent); color: #000; }
+  .btn-spotify:hover { background: #1ed760; transform: scale(1.05); }
+  .btn-secondary { background: var(--surface); color: white; border: 1px solid var(--border); }
+  .btn-secondary:hover { background: #222; }
+
+  @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes checkmark { to { stroke-dashoffset: 0; } }
+
+  .check-icon { width: 80px; height: 80px; }
+  .check-path { stroke-dasharray: 100; stroke-dashoffset: 100; animation: checkmark 0.6s ease-in-out forwards; }
 </style>
 </head>
 <body>
 
-<div class="orb orb1"></div>
-<div class="orb orb2"></div>
-
-<div class="wrap">
-
-  <!-- HEADER -->
-  <header>
-    <div class="logo">
-      <div class="logo-icon">🎵</div>
-      <div class="logo-text">Mood<span>ify</span></div>
-    </div>
-    <div id="header-right">
-      {% if logged_in %}
-      <div class="user-pill">
-        <img id="user-img" src="" alt="">
-        <strong id="user-name">...</strong>
-        <a href="/logout" style="color:var(--muted);text-decoration:none;margin-left:4px;font-size:12px">sign out</a>
-      </div>
+  <!-- PAGE 1: LOGIN -->
+  <div id="page-login" class="page active">
+    <div class="hero-content">
+      <div style="font-size: 48px; margin-bottom: 24px;">🎵</div>
+      <h1>Moodify<span>.</span></h1>
+      <p>Your library, sorted the way your brain actually works.</p>
+      {% if not logged_in %}
+      <a href="/login" class="btn btn-spotify">Connect with Spotify</a>
       {% else %}
-      <a href="/login" class="btn btn-secondary">Connect Spotify</a>
+      <div style="margin-bottom: 32px; display: flex; align-items: center; justify-content: center; gap: 12px; background: var(--surface); padding: 12px 24px; border-radius: 100px; border: 1px solid var(--border);">
+        <img src="{{ user_info.image }}" style="width: 32px; height: 32px; border-radius: 50%;" alt="">
+        <span style="font-weight: 700;">{{ user_info.name }}</span>
+        <a href="/logout" style="color: var(--muted); font-size: 12px; text-decoration: none;">Sign out</a>
+      </div>
+      <button class="btn btn-spotify" onclick="startAnalysis()">Analyze My Library</button>
       {% endif %}
     </div>
-  </header>
-
-  <!-- HERO / LANDING -->
-  <div id="step-landing">
-    {% if not logged_in %}
-    <div id="hero">
-      <h1>Turn your liked songs<br>into <em>mood playlists</em></h1>
-      <p>Moodify analyzes every song you've liked and automatically groups them by how they feel — no manual sorting.</p>
-      <div class="hero-badges">
-        <div class="badge">🎉 Hype / Party</div>
-        <div class="badge">💪 Pump-Up / Workout</div>
-        <div class="badge">😔 Melancholic / Moody</div>
-        <div class="badge">🌙 Ambient / Chill</div>
-        <div class="badge">+ 9 more moods</div>
-      </div>
-      <a href="/login" class="btn btn-primary btn-lg">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
-        Connect with Spotify
-      </a>
-      <p style="margin-top:16px;font-size:12px;color:var(--muted)">Free & open source · Works with Spotify Free & Premium</p>
-    </div>
-    {% else %}
-    <div id="hero" style="padding-bottom:20px">
-      <h1>Ready to<br>sort your <em>vibes</em>?</h1>
-      <p>We'll analyze your liked songs and group them into mood playlists automatically.</p>
-      <button class="btn btn-primary btn-lg" onclick="startAnalysis()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        Analyze My Library
-      </button>
-    </div>
-    {% endif %}
   </div>
 
-  <!-- LOADING -->
-  <div id="loading">
-    <div class="spinner"></div>
-    <strong id="loading-title">Fetching your liked songs…</strong>
-    <p id="loading-sub">This may take a minute for large libraries</p>
+  <!-- PAGE 2: ANALYZING -->
+  <div id="page-analyze" class="page">
+    <div class="analyze-box">
+      <div class="analyze-status" id="status-text">Fetching tracks...</div>
+      <div class="analyze-count" id="status-count">0 / 0 tracks</div>
+      <div class="progress-container">
+        <div class="progress-bar" id="pbar"></div>
+      </div>
+      <div class="live-feed" id="live-feed"></div>
+    </div>
   </div>
 
-  <!-- RESULTS -->
-  <div id="step-results">
-    <!-- Stats -->
-    <div class="stats-row" id="stats-row"></div>
-
-    <!-- Chart -->
-    <div id="chart-section">
-      <div class="section-title">Mood Distribution</div>
-      <div class="chart-wrap">
-        <canvas id="moodChart"></canvas>
-      </div>
+  <!-- PAGE 3: DASHBOARD -->
+  <div id="page-dashboard" class="page">
+    <div class="dashboard-header">
+      <h2 id="dash-summary-title">Discovery complete.</h2>
+      <p id="dash-summary-desc">We found 0 playlists across 0 songs.</p>
     </div>
 
-    <!-- Mood list -->
-    <div class="section-title">Your Moods — select & rename playlists</div>
-    <div id="mood-grid"></div>
+    <div class="playlist-grid" id="playlist-grid">
+      <!-- Cards injected here -->
+    </div>
 
-    <!-- Sticky action bar -->
     <div class="action-bar">
-      <div class="action-info">
-        <strong id="selected-count">0</strong> playlists selected
-      </div>
-      <div style="display:flex;gap:10px">
-        <button class="btn btn-secondary" onclick="selectAll()">Select All</button>
-        <button class="btn btn-primary" id="create-btn" onclick="createPlaylists()" disabled>
-          Create Playlists →
-        </button>
-      </div>
+      <div id="selected-info">0 playlists selected</div>
+      <button class="btn btn-spotify" id="create-btn" onclick="createPlaylists()">Create on Spotify</button>
     </div>
   </div>
 
-  <!-- DONE -->
-  <div id="step-done">
-    <div style="font-size:56px;margin-bottom:16px">🎉</div>
-    <h2>Playlists Created!</h2>
-    <p>Open Spotify to find your new mood playlists.</p>
-    <div class="created-list" id="created-list"></div>
-    <button class="btn btn-secondary" onclick="restart()">← Analyze Again</button>
+  <!-- PAGE 4: SUCCESS -->
+  <div id="page-success" class="page">
+    <div class="success-box">
+      <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <path class="check-path" d="M20 6L9 17L4 12"/>
+      </svg>
+      <h1>Library Organized.</h1>
+      <p>Check your Spotify app for your new playlists.</p>
+      <div class="success-list" id="success-list"></div>
+      <button class="btn btn-secondary" onclick="location.reload()">Re-analyze Library</button>
+    </div>
   </div>
 
-</div>
-
-<div id="toast"></div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
-let moodData = [];
+  let analyzeData = null;
+  let selectedPlaylistIds = new Set();
 
-// ── Load user info ──
-{% if logged_in %}
-fetch('/api/me').then(r=>r.json()).then(u=>{
-  document.getElementById('user-name').textContent = u.name || u.id;
-  if(u.image) document.getElementById('user-img').src = u.image;
-});
-{% endif %}
-
-// ── Analyze ──
-async function startAnalysis() {
-  show('loading');
-  hide('step-landing');
-
-  const titles = [
-    'Fetching your liked songs…',
-    'Analyzing audio features…',
-    'Grouping by mood…',
-    'Almost there…'
-  ];
-  let ti = 0;
-  const interval = setInterval(()=>{
-    ti = Math.min(ti+1, titles.length-1);
-    document.getElementById('loading-title').textContent = titles[ti];
-  }, 3000);
-
-  try {
-    const res = await fetch('/api/analyze');
-    if (!res.ok) throw new Error('Analysis failed');
-    const data = await res.json();
-    clearInterval(interval);
-    renderResults(data);
-  } catch(e) {
-    clearInterval(interval);
-    toast('Error: ' + e.message, true);
-    show('step-landing');
-    hide('loading');
-  }
-}
-
-// ── Render Results ──
-function renderResults(data) {
-  hide('loading');
-  show('step-results');
-  moodData = data.moods || [];
-
-  if (moodData.length === 0) {
-    document.getElementById('stats-row').innerHTML = `
-      <div class="stat-card"><div class="val">${data.total}</div><div class="lbl">Liked Songs</div></div>
-      <div class="stat-card" style="grid-column: span 2"><div class="val">0</div><div class="lbl">No moods identified</div></div>
-    `;
-    document.getElementById('mood-grid').innerHTML = '';
-    return;
+  function showPage(id) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
   }
 
-  // Stats
-  const maxMood = data.moods.reduce((a,b)=>a.count>b.count?a:b,data.moods[0]);
-  document.getElementById('stats-row').innerHTML = `
-    <div class="stat-card"><div class="val">${data.total}</div><div class="lbl">Liked Songs</div></div>
-    <div class="stat-card"><div class="val">${data.moods.length}</div><div class="lbl">Mood Categories</div></div>
-    <div class="stat-card"><div class="val">${maxMood.emoji}</div><div class="lbl">Top Mood: ${maxMood.mood}</div></div>
-  `;
+  async function startAnalysis() {
+    showPage('page-analyze');
+    updateStatus('Initializing analysis...', 5);
 
-  // Chart
-  renderChart(data.moods);
+    // UI steps
+    const steps = [
+      'Syncing liked songs...',
+      'Analyzing artist DNA...',
+      'Decoding metadata signals...',
+      'Generating intelligent vibes...',
+      'Polishing playlists...'
+    ];
 
-  // Mood cards
-  const grid = document.getElementById('mood-grid');
-  grid.innerHTML = '';
-  const maxCount = Math.max(...data.moods.map(m=>m.count));
-
-  data.moods.forEach((m, i) => {
-    const card = document.createElement('div');
-    card.className = 'mood-card selected';
-    card.dataset.mood = m.mood;
-    card.style.animationDelay = (i * 0.04) + 's';
-
-    const songRows = m.songs.map(s=>`
-      <div class="song-item">
-        <img src="${s.image}" alt="" onerror="this.style.display='none'">
-        <div>
-          <div class="s-name">${esc(s.name)}</div>
-          <div class="s-artist">${esc(s.artist)}</div>
-        </div>
-      </div>`).join('');
-
-    card.innerHTML = `
-      <div class="mood-header" onclick="toggleCard(this.closest('.mood-card'))">
-        <div class="mood-check">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M2 6l3 3 5-5" stroke="#000" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <div class="mood-emoji">${m.emoji}</div>
-        <div class="mood-info">
-          <div class="mood-name">${m.mood}</div>
-          <div class="mood-count">${m.count} songs</div>
-        </div>
-        <div class="mood-bar-wrap">
-          <div class="mood-bar" style="width:${Math.round(m.count/maxCount*100)}%"></div>
-        </div>
-        <div class="expand-btn-toggle" style="margin-left:auto; cursor:pointer; padding: 5px;" onclick="toggleExpand(this.closest('.mood-card')); event.stopPropagation()">
-           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-        </div>
-        <input class="mood-name-input" value="${m.emoji} ${m.mood}"
-               onclick="event.stopPropagation()"
-               placeholder="Playlist name"
-               data-mood="${esc(m.mood)}">
-      </div>
-      <div class="mood-songs">
-        <div class="song-list">${songRows}</div>
-        <div class="expand-btn" onclick="toggleExpand(this.closest('.mood-card')); event.stopPropagation()">↑ hide preview</div>
-      </div>
-    `;
-    grid.appendChild(card);
-  });
-
-  updateSelectedCount();
-}
-
-// ── Chart ──
-let chartInstance = null;
-function renderChart(moods) {
-  if (chartInstance) chartInstance.destroy();
-  const ctx = document.getElementById('moodChart').getContext('2d');
-  chartInstance = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: moods.map(m => m.emoji + ' ' + m.mood),
-      datasets: [{
-        data: moods.map(m => m.count),
-        backgroundColor: moods.map((_,i) => `hsla(${140 + i*12}, 60%, 50%, 0.7)`),
-        borderRadius: 6,
-        borderSkipped: false,
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { ticks: { color: '#666680', font: { size: 11 } }, grid: { color: '#ffffff08' } },
-        y: { ticks: { color: '#666680' }, grid: { color: '#ffffff08' } }
+    let stepIdx = 0;
+    const interval = setInterval(() => {
+      if(stepIdx < steps.length) {
+        updateStatus(steps[stepIdx], 10 + (stepIdx * 15));
+        stepIdx++;
       }
+    }, 2500);
+
+    try {
+      const res = await fetch('/api/analyze');
+      const data = await res.json();
+      clearInterval(interval);
+      analyzeData = data;
+
+      // Handle debug feed for live console
+      if(data.debug_feed) {
+        data.debug_feed.forEach((track, i) => {
+          setTimeout(() => {
+            const vibe = `${track.profile.context} · ${track.profile.tone}`;
+            addToFeed(track.name, vibe);
+          }, i * 150);
+        });
+      }
+
+      setTimeout(() => renderDashboard(data), data.debug_feed.length * 150 + 500);
+    } catch(e) {
+      alert('Analysis failed: ' + e.message);
+      location.reload();
     }
-  });
-}
-
-// ── Toggle card selection ──
-function toggleCard(card) {
-  card.classList.toggle('selected');
-  updateSelectedCount();
-}
-
-function toggleExpand(card) {
-  card.classList.toggle('expanded');
-}
-
-function updateSelectedCount() {
-  const n = document.querySelectorAll('.mood-card.selected').length;
-  document.getElementById('selected-count').textContent = n;
-  document.getElementById('create-btn').disabled = n === 0;
-}
-
-function selectAll() {
-  document.querySelectorAll('.mood-card').forEach(c => c.classList.add('selected'));
-  updateSelectedCount();
-}
-
-// ── Create Playlists ──
-async function createPlaylists() {
-  const btn = document.getElementById('create-btn');
-  btn.disabled = true;
-  btn.textContent = 'Creating…';
-
-  const payload = [];
-  document.querySelectorAll('.mood-card.selected').forEach(card => {
-    const moodName = card.dataset.mood;
-    const name = card.querySelector('.mood-name-input').value.trim() || moodName;
-    const moodObj = moodData.find(m => m.mood === moodName);
-    payload.push({
-      mood: moodName,
-      name,
-      selected: true,
-      uris: moodObj ? moodObj.all_uris : []
-    });
-  });
-
-  try {
-    const res = await fetch('/api/create_playlists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    showDone(data.created);
-  } catch(e) {
-    toast('Error creating playlists: ' + e.message, true);
-    btn.disabled = false;
-    btn.textContent = 'Create Playlists →';
   }
-}
 
-// ── Done screen ──
-function showDone(created) {
-  hide('step-results');
-  show('step-done');
-  const list = document.getElementById('created-list');
-  list.innerHTML = created.map(p=>`
-    <div class="created-item">
-      <span>${p.name}</span>
-      <span style="color:var(--muted);font-size:12px">${p.count} songs</span>
-    </div>
-  `).join('');
-}
+  function updateStatus(text, percent) {
+    document.getElementById('status-text').textContent = text;
+    document.getElementById('pbar').style.width = percent + '%';
+  }
 
-function restart() {
-  hide('step-done');
-  show('step-landing');
-  moodData = [];
-}
+  function renderDashboard(data) {
+    showPage('page-dashboard');
+    document.getElementById('dash-summary-desc').textContent =
+      `Found ${data.playlists.length} playlists across ${data.total} liked songs.`;
 
-// ── Helpers ──
-function show(id) { document.getElementById(id).style.display = 'block'; }
-function hide(id) { document.getElementById(id).style.display = 'none'; }
-function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    const grid = document.getElementById('playlist-grid');
+    grid.innerHTML = '';
 
-function toast(msg, err=false) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.style.color = err ? 'var(--danger)' : 'var(--accent)';
-  t.style.display = 'block';
-  setTimeout(()=>{ t.style.display='none'; }, 3500);
-}
+    data.playlists.forEach(pl => {
+      const card = document.createElement('div');
+      card.className = 'playlist-card selected';
+      selectedPlaylistIds.add(pl.id);
+
+      card.onclick = () => {
+        card.classList.toggle('selected');
+        if(card.classList.contains('selected')) selectedPlaylistIds.add(pl.id);
+        else selectedPlaylistIds.delete(pl.id);
+        updateSelectedCount();
+      };
+
+      const dots = Array.from({length: 4}, (_, i) =>
+        `<div class="dot ${i < pl.energy_level ? 'filled' : ''}"></div>`
+      ).join('');
+
+      const arts = pl.album_arts.concat(Array(4).fill('')).slice(0,4);
+      const artHtml = arts.map(url => `<img src="${url}" alt="">`).join('');
+
+      card.innerHTML = `
+        <div class="card-top">
+          <div class="card-emoji">${pl.emoji}</div>
+          <div class="card-count">${pl.track_count} tracks</div>
+        </div>
+        <div class="art-grid">${artHtml}</div>
+        <div class="card-info">
+          <div class="card-desc">${pl.desc}</div>
+          <h3>${pl.name}</h3>
+          <div class="card-artists">${pl.top_artists.join(', ')}</div>
+        </div>
+        <div class="card-footer">
+          <div class="energy-dots">${dots}</div>
+          <div class="tone-badge" style="background: var(--tone-${pl.tone.toLowerCase()})">${pl.tone}</div>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+    updateSelectedCount();
+  }
+
+  function updateSelectedCount() {
+    document.getElementById('selected-info').textContent = `${selectedPlaylistIds.size} playlists selected`;
+    document.getElementById('create-btn').disabled = selectedPlaylistIds.size === 0;
+  }
+
+  async function createPlaylists() {
+    const btn = document.getElementById('create-btn');
+    btn.disabled = true;
+    btn.textContent = 'Creating...';
+
+    const selected = analyzeData.playlists.filter(p => selectedPlaylistIds.has(p.id));
+
+    try {
+      const res = await fetch('/api/create_playlists', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(selected)
+      });
+      const data = await res.json();
+      renderSuccess(data.created);
+    } catch(e) {
+      alert('Failed to create playlists: ' + e.message);
+      btn.disabled = false;
+      btn.textContent = 'Create on Spotify';
+    }
+  }
+
+  function renderSuccess(created) {
+    showPage('page-success');
+    const list = document.getElementById('success-list');
+    list.innerHTML = created.map(p => `
+      <a href="https://open.spotify.com/playlist/${p.id}" target="_blank" class="success-item">
+        <span>${p.name}</span>
+        <span style="color:var(--muted); font-size:12px">${p.count} tracks</span>
+        <span style="color:var(--accent)">Open ↗</span>
+      </a>
+    `).join('');
+  }
+
+  // Handle live feed simulation
+  function addToFeed(name, category) {
+    const feed = document.getElementById('live-feed');
+    const item = document.createElement('div');
+    item.className = 'feed-item';
+    item.innerHTML = `<span>${name}</span> <strong>${category}</strong>`;
+    feed.prepend(item);
+    if(feed.childNodes.length > 50) feed.lastChild.remove();
+  }
 </script>
 </body>
 </html>
