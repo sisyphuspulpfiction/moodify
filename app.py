@@ -10,6 +10,7 @@ import requests
 import os
 import time
 import urllib.parse
+import json
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -197,11 +198,13 @@ def analyze():
         for item in items:
             t = item["track"]
             if t:
+                # Use only the primary (first) artist to minimize API calls for genres
+                primary_artist_id = t["artists"][0]["id"] if t["artists"] else None
                 tracks.append({
                     "uri":    t["uri"],
                     "name":   t["name"],
                     "artist": ", ".join(a["name"] for a in t["artists"]),
-                    "artist_ids": [a["id"] for a in t["artists"]],
+                    "primary_artist_id": primary_artist_id,
                     "album":  t["album"]["name"],
                     "image":  t["album"]["images"][-1]["url"] if t["album"]["images"] else "",
                 })
@@ -228,17 +231,28 @@ def analyze():
         time.sleep(0.1)
 
     # Fetch artist genres as a fallback
-    artist_ids = list(set(aid for t in tracks for aid in t.get("artist_ids", [])))
+    # Use only the primary (first) artist to minimize API calls for genres
+    artist_ids = list(set(t["primary_artist_id"] for t in tracks if t.get("primary_artist_id")))
+
+    # Simple JSON cache for artist genres
+    cache_file = "artist_cache.json"
     artist_genres = {}
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, "r") as f:
+                artist_genres = json.load(f)
+        except: pass
 
     # Track if bulk artists endpoint is restricted (403 or 404)
     bulk_artists_restricted = False
 
-    if artist_ids:
-        for batch_ids in chunk(artist_ids, 50):
+    # Filter out artists already in cache
+    artists_to_fetch = [aid for aid in artist_ids if aid not in artist_genres]
+
+    if artists_to_fetch:
+        for batch_ids in chunk(artists_to_fetch, 50):
             try:
                 if not bulk_artists_restricted:
-                    # GET /artists still works for multiple IDs in many cases, but let's be safe
                     r = requests.get(f"{API_BASE}/artists",
                                      headers={"Authorization": f"Bearer {token}"},
                                      params={"ids": ",".join(batch_ids)})
@@ -253,19 +267,30 @@ def analyze():
                         if r.status_code in [403, 404]:
                             bulk_artists_restricted = True
 
-                # Fallback to individual calls if plural endpoint is restricted
+                # Fallback to individual calls
                 for aid in batch_ids:
                     ra = requests.get(f"{API_BASE}/artists/{aid}",
                                      headers={"Authorization": f"Bearer {token}"})
                     if ra.status_code == 200:
                         artist_genres[aid] = ra.json().get("genres", [])
                     elif ra.status_code == 429:
-                        print("Rate limited during individual artist fetch, sleeping...")
-                        time.sleep(2.0)
-                    time.sleep(0.05)
+                        wait = int(ra.headers.get("Retry-After", 2))
+                        print(f"Rate limited during individual artist fetch, sleeping {wait}s...")
+                        time.sleep(wait)
+                        # retry once
+                        ra = requests.get(f"{API_BASE}/artists/{aid}", headers={"Authorization": f"Bearer {token}"})
+                        if ra.status_code == 200:
+                            artist_genres[aid] = ra.json().get("genres", [])
+                    time.sleep(0.1)
             except Exception as e:
                 print(f"Error fetching artist genres: {e}")
             time.sleep(0.1)
+
+        # Update cache file
+        try:
+            with open(cache_file, "w") as f:
+                json.dump(artist_genres, f)
+        except: pass
 
     # Assign moods
     mood_map = {}
@@ -274,10 +299,8 @@ def analyze():
         t["audio_features"] = features.get(tid, {})
 
         # Attach genres to track for mood assignment
-        t["genres"] = []
-        for aid in t.get("artist_ids", []):
-            t["genres"].extend(artist_genres.get(aid, []))
-        t["genres"] = list(set(t["genres"]))
+        aid = t.get("primary_artist_id")
+        t["genres"] = artist_genres.get(aid, []) if aid else []
 
         mood = assign_mood(t)
         t["mood"] = mood
