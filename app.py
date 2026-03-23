@@ -43,46 +43,12 @@ MOOD_EMOJIS = {
 }
 
 # ─── MOOD LOGIC ──────────────────────────────────────────────────────────────
-GENRE_MOODS = {
-    "Hype / Party": ["dance", "edm", "party", "pop", "hip hop", "rap", "r&b", "funk", "disco", "house", "techno", "electro", "trance", "k-pop", "reggaeton"],
-    "Pump-Up / Workout": ["rock", "metal", "punk", "hardcore", "trap", "gym", "workout", "phonk", "dubstep", "grime", "breakbeat"],
-    "Dark & Intense": ["industrial", "goth", "metal", "dark", "doom", "black metal", "death metal", "techno", "ebm"],
-    "Feel-Good / Upbeat": ["indie pop", "happy", "summer", "sunny", "britpop", "j-pop", "nu-disco", "funk", "motown"],
-    "Sunny / Laid-Back": ["reggae", "surf", "tropical", "folk pop", "lo-fi", "ska", "afrobeats", "bossa nova"],
-    "Melancholic / Moody": ["indie rock", "alternative", "shoegaze", "emo", "grunge", "post-punk", "slowcore", "dream pop"],
-    "Acoustic / Soulful": ["soul", "jazz", "blues", "folk", "acoustic", "r&b", "neo soul", "bluegrass", "country"],
-    "Calm Acoustic": ["classical", "piano", "acoustic", "singer-songwriter", "chamber", "ambient acoustic", "baroque"],
-    "Energetic Instrumental": ["techno", "trance", "house", "drum and bass", "idm", "glitch", "progressive", "jazz fusion"],
-    "Ambient / Chill Instrumental": ["ambient", "chillout", "lo-fi", "downtempo", "new age", "minimal", "meditation"],
-    "Relaxed / Mellow": ["chill", "smooth", "mellow", "easy listening", "jazz", "lounge", "soft rock", "yacht rock"],
-    "Sad / Reflective": ["sad", "melancholy", "ballad", "dark folk", "ambient", "minimal", "modern classical"],
-}
-
-# Metadata Keywords mapping
-KEYWORD_MOODS = {
-    "Hype / Party": ["party", "dance", "disco", "remix", "club", "hits", "energy"],
-    "Pump-Up / Workout": ["workout", "gym", "pump", "training", "hard", "heavy", "intense"],
-    "Dark & Intense": ["dark", "intense", "shadow", "night", "black", "doom"],
-    "Feel-Good / Upbeat": ["happy", "summer", "sunny", "upbeat", "good vibes", "smile", "fun"],
-    "Sunny / Laid-Back": ["relax", "beach", "tropical", "laid back", "surf", "breeze"],
-    "Melancholic / Moody": ["moody", "sad", "blue", "alternative", "emo", "rain"],
-    "Acoustic / Soulful": ["acoustic", "unplugged", "soul", "jazz", "live", "ballad"],
-    "Calm Acoustic": ["calm", "soft", "peaceful", "acoustic", "piano", "sleep"],
-    "Energetic Instrumental": ["instrumental", "techno", "electronic", "progressive", "beats"],
-    "Ambient / Chill Instrumental": ["ambient", "chill", "lofi", "study", "relaxing", "background"],
-    "Relaxed / Mellow": ["chillout", "mellow", "smooth", "easy", "soft"],
-    "Sad / Reflective": ["sad", "heartbreak", "crying", "broken", "lonely", "slow"],
-}
-
 def assign_mood(track):
     f = track.get("audio_features", {})
     genres = [g.lower() for g in track.get("genres", [])]
-    name = track.get("name", "").lower()
-    album = track.get("album", "").lower()
 
-    # Priority 1: Audio feature-based classification (if available)
-    # Refined thresholds to avoid everything landing in 'Cruising'
-    if f:
+    # ── Audio features (only works for older/grandfathered Spotify apps) ──
+    if f and any(f.get(k) is not None for k in ("energy", "valence", "danceability")):
         e   = f.get("energy", 0.5)
         v   = f.get("valence", 0.5)
         d   = f.get("danceability", 0.5)
@@ -106,15 +72,34 @@ def assign_mood(track):
             if v < 0.35:  return "Sad / Reflective"
             return "Relaxed / Mellow"
 
-    # Priority 2: Genre-based classification (most accurate metadata)
-    for mood, keywords in GENRE_MOODS.items():
-        if any(kw in g for kw in keywords for g in genres):
-            return mood
+    # ── Genre-based classification (primary path for most apps now) ──
+    if genres:
+        genre_str = " ".join(genres)  # search across all genres at once
 
-    # Priority 3: Keyword-based classification (metadata fallback)
-    for mood, keywords in KEYWORD_MOODS.items():
-        if any(kw in name or kw in album for kw in keywords):
-            return mood
+        if any(kw in genre_str for kw in ["dance", "edm", "party", "house", "techno", "trance", "k-pop", "reggaeton", "disco"]):
+            return "Hype / Party"
+        if any(kw in genre_str for kw in ["metal", "punk", "hardcore", "trap", "phonk", "dubstep", "workout", "gym"]):
+            return "Pump-Up / Workout"
+        if any(kw in genre_str for kw in ["industrial", "goth", "doom", "dark", "black metal", "death metal", "ebm"]):
+            return "Dark & Intense"
+        if any(kw in genre_str for kw in ["indie pop", "happy", "summer", "britpop", "j-pop", "nu-disco", "motown", "funk"]):
+            return "Feel-Good / Upbeat"
+        if any(kw in genre_str for kw in ["reggae", "surf", "tropical", "folk pop", "ska", "afrobeats", "bossa nova"]):
+            return "Sunny / Laid-Back"
+        if any(kw in genre_str for kw in ["indie rock", "alternative", "shoegaze", "emo", "grunge", "post-punk", "dream pop", "slowcore"]):
+            return "Melancholic / Moody"
+        if any(kw in genre_str for kw in ["soul", "jazz", "blues", "folk", "acoustic", "neo soul", "bluegrass", "country", "r&b"]):
+            return "Acoustic / Soulful"
+        if any(kw in genre_str for kw in ["classical", "piano", "chamber", "baroque", "singer-songwriter"]):
+            return "Calm Acoustic"
+        if any(kw in genre_str for kw in ["ambient", "chillout", "lo-fi", "downtempo", "new age", "meditation", "minimal"]):
+            return "Ambient / Chill Instrumental"
+        if any(kw in genre_str for kw in ["chill", "smooth", "mellow", "lounge", "soft rock", "easy listening", "yacht rock"]):
+            return "Relaxed / Mellow"
+        if any(kw in genre_str for kw in ["sad", "melancholy", "ballad", "dark folk", "modern classical"]):
+            return "Sad / Reflective"
+        if any(kw in genre_str for kw in ["hip hop", "rap", "pop"]):
+            return "Cruising / Everyday"
 
     return "Cruising / Everyday"
 
@@ -335,13 +320,19 @@ def analyze():
         except StopIteration as si:
             print(f"Stopping artist fetch: {si}")
         except Exception as top_e:
-            print(f"Artist fetch loop error: {top_e}")
+                print(f"Artist fetch loop error: {top_e}")
 
         # Update cache file
         try:
             with open(cache_file, "w") as f:
                 json.dump(artist_genres, f)
         except: pass
+
+    # Debug sample
+    sample = tracks[:3]
+    for t in sample:
+        tid = t["uri"].split(":")[-1]
+        print(f"Track: {t['name']} | Features: {features.get(tid)} | Genres: {t.get('genres', [])}")
 
     # Assign moods
     mood_map = {}
